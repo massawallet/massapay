@@ -1,0 +1,37 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Keystore files - NEVER commit these!
+keystore.properties
+keystore/
+*.jks
+*.keystore
+CREDENCIALES_FIRMA_MASSAPAY.md
+
+# APK/AAB outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Built application files
+/*/build/
+
+# Crashlytics
+com_crashlytics_export_strings.xml
+crashlytics.properties
+crashlytics-build.properties
+fabric.properties

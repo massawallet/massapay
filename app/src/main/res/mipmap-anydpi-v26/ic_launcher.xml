@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <!-- Use a drawable wrapper so we can add padding (inset) to avoid clipping on circular/squircle masks -->
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <!-- Optional: add a monochrome layer if desired for Android 13+ -->
+</adaptive-icon>

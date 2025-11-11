@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Wrapper drawable to add padding around the foreground PNG so it isn't clipped by launcher masks -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:inset="10dp"
+    android:drawable="@mipmap/ic_launcher_foreground" />

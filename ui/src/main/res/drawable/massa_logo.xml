@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer circle with subtle fill and purple stroke -->
+    <path
+        android:pathData="M54,10a44,44 0 1,0 0,88a44,44 0 1,0 0,-88z"
+        android:fillColor="#151515"
+        android:strokeColor="#9B6BFF"
+        android:strokeWidth="4"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"/>
+
+    <!-- Massa 'M' monogram with cyan stroke -->
+    <path
+        android:pathData="M30,75 L30,35 L54,60 L78,35 L78,75"
+        android:fillColor="#00000000"
+        android:strokeColor="#6BFFFF"
+        android:strokeWidth="6"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"/>
+</vector>

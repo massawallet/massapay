@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Background color for adaptive icon -->
+    <color name="ic_launcher_background">#0B0B0B</color>
+    <color name="splash_background">#FFFFFF</color>
+</resources>
