@@ -20,6 +20,19 @@
 
 MassaPay is a **secure, self-custodial cryptocurrency wallet** for the Massa blockchain. Built with privacy and security as core principles, MassaPay gives you complete control over your digital assets.
 
+## Screenshots
+
+<p align="center">
+  <img src="screenshots/1.png" width="200" alt="Wallet Dashboard"/>
+  <img src="screenshots/2.png" width="200" alt="Send Transaction"/>
+  <img src="screenshots/3.png" width="200" alt="Receive"/>
+  <img src="screenshots/4.png" width="200" alt="Settings"/>
+</p>
+
+<p align="center">
+  <img src="screenshots/5.png" width="200" alt="Security Features"/>
+</p>
+
 ### Key Features
 
 - **Self-Custodial**: You own your keys, you own your crypto
