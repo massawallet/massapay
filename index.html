@@ -528,16 +528,11 @@
             
             <!-- Google Play Coming Soon -->
             <div style="margin: 3rem 0;">
-                <div style="display: inline-block; position: relative;">
+                <a href="#" onclick="alert('Coming Soon! Currently in Google Play review process.'); return false;" style="display: inline-block; text-decoration: none;">
                     <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" 
                          alt="Get it on Google Play" 
-                         style="height: 80px; opacity: 0.3; filter: grayscale(100%);">
-                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-                                background: rgba(0,0,0,0.9); padding: 0.75rem 1.5rem; border-radius: 8px; 
-                                border: 1px solid var(--text-primary); font-weight: 600; font-size: 1rem;">
-                        COMING SOON
-                    </div>
-                </div>
+                         style="height: 80px; transition: transform 0.3s; cursor: pointer;">
+                </a>
                 <p style="margin-top: 1rem; font-size: 0.875rem; color: var(--text-secondary);">
                     Currently in review process
                 </p>
