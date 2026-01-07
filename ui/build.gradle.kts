@@ -45,6 +45,9 @@ dependencies {
     implementation(project(":network"))
     implementation(project(":price"))
 
+    // Gson for JSON parsing
+    implementation("com.google.code.gson:gson:2.10.1")
+
     // Compose
     implementation(platform("androidx.compose:compose-bom:2023.10.00"))
     implementation("androidx.compose.ui:ui")

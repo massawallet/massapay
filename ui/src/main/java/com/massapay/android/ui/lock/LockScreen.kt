@@ -165,7 +165,7 @@ fun LockScreen(
     ) {
         // Version text at top right
         Text(
-            text = "v1.3.0",
+            text = "v1.4.0",
             fontSize = 12.sp,
             color = textSecondary,
             fontWeight = FontWeight.Medium,

@@ -31,7 +31,7 @@ android {
         minSdk = 26  // Android 8.0+ (cubre ~95% de dispositivos activos)
         targetSdk = 34  // Target 34 para cumplir requisitos de Google Play 2024
         versionCode = 7
-        versionName = "1.3.0"
+        versionName = "1.4.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
         // Soporte para todas las arquitecturas (dispositivos físicos y emuladores)

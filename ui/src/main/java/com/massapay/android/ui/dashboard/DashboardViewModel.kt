@@ -200,6 +200,10 @@ class DashboardViewModel @Inject constructor(
         _uiState.update { it.copy(showUsdValue = !it.showUsdValue) }
     }
     
+    fun toggleBalanceVisibility() {
+        _uiState.update { it.copy(isBalanceHidden = !it.isBalanceHidden) }
+    }
+    
     /**
      * Calculate total portfolio value by fetching all token balances
      */
@@ -363,6 +367,7 @@ data class DashboardState(
     val priceChange24h: Double = 0.0,
     val massaStats: MassaStats? = null,
     val showUsdValue: Boolean = true,
+    val isBalanceHidden: Boolean = false,
     val recentTransactions: List<Transaction> = emptyList(),
     val isLoading: Boolean = true,
     val error: String? = null,

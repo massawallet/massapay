@@ -46,6 +46,7 @@ import com.massapay.android.ui.transaction.SendViewModel
 import com.massapay.android.ui.swap.SwapScreen
 import com.massapay.android.ui.charts.ChartsScreen
 import com.massapay.android.ui.portfolio.PortfolioScreen
+import com.massapay.android.ui.agentbridge.AgentQRScannerScreen
 import com.massapay.android.ui.theme.MassaPayTheme
 import com.massapay.android.core.preferences.ThemeManager
 import com.massapay.android.core.preferences.ThemeMode
@@ -411,9 +412,28 @@ class MainActivity : FragmentActivity() {
                     }
                     
                     composable("staking") {
+                        // Get QR content from saved state (after scanning)
+                        val agentQRContent = navController.currentBackStackEntry
+                            ?.savedStateHandle
+                            ?.get<String>("agent_qr")
+                        
                         com.massapay.android.ui.staking.StakingScreen(
                             onClose = { navController.popBackStack() },
-                            isDarkTheme = darkTheme
+                            isDarkTheme = darkTheme,
+                            onScanAgentQR = { navController.navigate("agent-qr-scanner") },
+                            agentQRContent = agentQRContent
+                        )
+                    }
+                    
+                    composable("agent-qr-scanner") {
+                        AgentQRScannerScreen(
+                            onClose = { navController.popBackStack() },
+                            isDarkTheme = darkTheme,
+                            onQRScanned = { qrContent ->
+                                // Navigate back and pass QR content to StakingScreen
+                                navController.previousBackStackEntry?.savedStateHandle?.set("agent_qr", qrContent)
+                                navController.popBackStack()
+                            }
                         )
                     }
                     

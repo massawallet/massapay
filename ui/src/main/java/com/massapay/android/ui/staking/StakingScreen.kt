@@ -2,8 +2,13 @@ package com.massapay.android.ui.staking
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -19,24 +24,112 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.massapay.android.core.model.StakingInfo
+import com.massapay.android.network.agentbridge.AgentConnectionState
+import com.massapay.android.network.agentbridge.StakingRewards
+import com.massapay.android.ui.agentbridge.AgentBridgeViewModel
+import com.massapay.android.ui.agentbridge.AgentConnectionDialog
+
+/**
+ * Data class for staking operation result dialog
+ */
+data class StakingResultInfo(
+    val isSuccess: Boolean,
+    val title: String,
+    val message: String,
+    val operationType: StakingOperationType
+)
+
+enum class StakingOperationType {
+    REGISTER_STAKING,
+    REMOVE_STAKING,
+    BUY_ROLLS,
+    SELL_ROLLS
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StakingScreen(
     onClose: () -> Unit,
     isDarkTheme: Boolean,
-    viewModel: StakingViewModel = hiltViewModel()
+    onScanAgentQR: () -> Unit = {},
+    agentQRContent: String? = null,
+    viewModel: StakingViewModel = hiltViewModel(),
+    agentBridgeViewModel: AgentBridgeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val agentUiState by agentBridgeViewModel.uiState.collectAsState()
     var showBuyDialog by remember { mutableStateOf(false) }
     var showSellDialog by remember { mutableStateOf(false) }
     var showInfoDialog by remember { mutableStateOf(false) }
+    var showAgentDialog by remember { mutableStateOf(false) }
+    var showRegisterStakingDialog by remember { mutableStateOf(false) }
+    var showRemoveStakingConfirmDialog by remember { mutableStateOf<String?>(null) }
+    var showStakingResultDialog by remember { mutableStateOf<StakingResultInfo?>(null) }
+    var showRollsOperationResult by remember { mutableStateOf<StakingResultInfo?>(null) }
+    
+    // Determine if node is connected for showing remote staking section
+    val isNodeConnected = agentUiState.nodeStatus?.connected == true
+    val isAgentConnected = agentUiState.connectionState is AgentConnectionState.Connected
+    
+    // Track if we've already processed this QR content
+    var processedQRContent by remember { mutableStateOf<String?>(null) }
+    
+    // Handle QR content from scanner - only connect if not already connected
+    // and only process each QR content once
+    LaunchedEffect(agentQRContent, agentUiState.connectionState) {
+        agentQRContent?.let { qrContent ->
+            if (qrContent.isNotEmpty() && 
+                qrContent != processedQRContent &&
+                agentUiState.connectionState is AgentConnectionState.Disconnected) {
+                processedQRContent = qrContent
+                agentBridgeViewModel.connectWithQrContent(qrContent)
+            }
+        }
+    }
+    
+    // Fetch additional data when node is connected
+    LaunchedEffect(isNodeConnected) {
+        if (isNodeConnected) {
+            agentBridgeViewModel.fetchStakingAddresses()
+            agentUiState.walletAddress?.let { address ->
+                agentBridgeViewModel.fetchRewards(address)
+            }
+        }
+    }
+    
+    // Handle operation success message
+    LaunchedEffect(agentUiState.operationSuccess) {
+        agentUiState.operationSuccess?.let {
+            kotlinx.coroutines.delay(3000)
+            agentBridgeViewModel.clearOperationSuccess()
+        }
+    }
+    
+    // Handle operation result dialog (from startStakingAuto/removeStakingKey)
+    LaunchedEffect(agentUiState.operationResult) {
+        agentUiState.operationResult?.let { result ->
+            showStakingResultDialog = StakingResultInfo(
+                isSuccess = result.isSuccess,
+                title = result.title,
+                message = result.message,
+                operationType = when (result.operationType) {
+                    com.massapay.android.ui.agentbridge.StakingOpType.REGISTER_STAKING -> StakingOperationType.REGISTER_STAKING
+                    com.massapay.android.ui.agentbridge.StakingOpType.REMOVE_STAKING -> StakingOperationType.REMOVE_STAKING
+                    com.massapay.android.ui.agentbridge.StakingOpType.BUY_ROLLS -> StakingOperationType.BUY_ROLLS
+                    com.massapay.android.ui.agentbridge.StakingOpType.SELL_ROLLS -> StakingOperationType.SELL_ROLLS
+                }
+            )
+            agentBridgeViewModel.clearOperationResult()
+        }
+    }
     
     // Use MaterialTheme colors for consistent theming
     val backgroundColor = MaterialTheme.colorScheme.background
@@ -112,6 +205,7 @@ fun StakingScreen(
                     // Rolls Balance Card
                     RollsBalanceCard(
                         stakingInfo = uiState.stakingInfo,
+                        isWalletRegisteredForStaking = agentUiState.stakingAddresses.contains(agentUiState.walletAddress),
                         isDarkTheme = isDarkTheme,
                         cardColor = cardColor,
                         textColor = textColor,
@@ -122,6 +216,70 @@ fun StakingScreen(
                         canBuy = !uiState.isProcessing && viewModel.getMaxRollsToBuy() > 0,
                         canSell = !uiState.isProcessing && viewModel.getMaxRollsToSell() > 0
                     )
+                    
+                    // Connect to Node Card
+                    AgentConnectionCard(
+                        connectionState = agentUiState.connectionState,
+                        nodeStatus = agentUiState.nodeStatus,
+                        stakingInfo = agentUiState.stakingInfo,
+                        isDarkTheme = isDarkTheme,
+                        cardColor = cardColor,
+                        textColor = textColor,
+                        secondaryTextColor = secondaryTextColor,
+                        accentColor = accentColor,
+                        iconContainerColor = iconContainerColor,
+                        iconTintColor = iconTintColor,
+                        onClick = { showAgentDialog = true },
+                        onRefresh = {
+                            agentUiState.walletAddress?.let { address ->
+                                agentBridgeViewModel.fetchStakingInfo(address)
+                            }
+                            agentBridgeViewModel.fetchNodeStatus()
+                        }
+                    )
+                    
+                    // ========================================
+                    // REMOTE STAKING SECTION (via Massa Agent)
+                    // ========================================
+                    AnimatedVisibility(
+                        visible = isNodeConnected,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            // Staking Keys Card
+                            StakingKeysCard(
+                                stakingAddresses = agentUiState.stakingAddresses,
+                                walletAddress = agentUiState.walletAddress,
+                                isProcessing = agentUiState.isProcessingOperation,
+                                isDarkTheme = isDarkTheme,
+                                cardColor = cardColor,
+                                textColor = textColor,
+                                secondaryTextColor = secondaryTextColor,
+                                accentColor = accentColor,
+                                onRegisterKey = { showRegisterStakingDialog = true },
+                                onRemoveKey = { address ->
+                                    // Show confirmation dialog instead of removing immediately
+                                    showRemoveStakingConfirmDialog = address
+                                }
+                            )
+                            
+                            // Rewards Card
+                            RewardsCard(
+                                rewards = agentUiState.rewards,
+                                isDarkTheme = isDarkTheme,
+                                cardColor = cardColor,
+                                textColor = textColor,
+                                secondaryTextColor = secondaryTextColor,
+                                accentColor = accentColor,
+                                onRefresh = {
+                                    agentUiState.walletAddress?.let { address ->
+                                        agentBridgeViewModel.fetchRewards(address)
+                                    }
+                                }
+                            )
+                        }
+                    }
                     
                     // Info Cards
                     StakingInfoCard(
@@ -193,35 +351,29 @@ fun StakingScreen(
             }
         }
         
-        // Success message
+        // Success message - show as dialog
         uiState.successMessage?.let { message ->
             LaunchedEffect(message) {
-                kotlinx.coroutines.delay(3000)
+                showRollsOperationResult = StakingResultInfo(
+                    isSuccess = true,
+                    title = "Success!",
+                    message = message,
+                    operationType = StakingOperationType.BUY_ROLLS
+                )
                 viewModel.clearMessages()
-            }
-            
-            Snackbar(
-                modifier = Modifier
-                    .padding(16.dp),
-                containerColor = Color(0xFF4CAF50)
-            ) {
-                Text(message, color = Color.White)
             }
         }
         
-        // Error message
+        // Error message - show as dialog
         uiState.error?.let { error ->
             LaunchedEffect(error) {
-                kotlinx.coroutines.delay(3000)
+                showRollsOperationResult = StakingResultInfo(
+                    isSuccess = false,
+                    title = "Operation Failed",
+                    message = error,
+                    operationType = StakingOperationType.BUY_ROLLS
+                )
                 viewModel.clearMessages()
-            }
-            
-            Snackbar(
-                modifier = Modifier
-                    .padding(16.dp),
-                containerColor = Color(0xFFF44336)
-            ) {
-                Text(error, color = Color.White)
             }
         }
         
@@ -264,12 +416,121 @@ fun StakingScreen(
                 onDismiss = { showInfoDialog = false }
             )
         }
+        
+        // Agent Connection Dialog
+        if (showAgentDialog) {
+            AgentConnectionDialog(
+                connectionState = agentUiState.connectionState,
+                isDarkTheme = isDarkTheme,
+                onScanQR = {
+                    showAgentDialog = false
+                    onScanAgentQR()
+                },
+                onDisconnect = {
+                    agentBridgeViewModel.disconnect()
+                    processedQRContent = null // Reset so user can scan new QR
+                },
+                onDismiss = { showAgentDialog = false }
+            )
+        }
+        
+        // Confirm Start Staking Dialog (auto uses wallet credentials)
+        if (showRegisterStakingDialog) {
+            StartStakingConfirmDialog(
+                rollCount = uiState.stakingInfo?.finalRolls ?: agentUiState.stakingInfo?.finalRolls ?: 0,
+                isDarkTheme = isDarkTheme,
+                onConfirm = {
+                    agentBridgeViewModel.startStakingAuto()
+                    showRegisterStakingDialog = false
+                },
+                onDismiss = { showRegisterStakingDialog = false }
+            )
+        }
+        
+        // Agent operation success message
+        agentUiState.operationSuccess?.let { message ->
+            Snackbar(
+                modifier = Modifier.padding(16.dp),
+                containerColor = Color(0xFF4CAF50)
+            ) {
+                Text(message, color = Color.White)
+            }
+        }
+        
+        // Agent error - just clear it silently (errors shown in result dialogs)
+        agentUiState.error?.let {
+            LaunchedEffect(it) {
+                kotlinx.coroutines.delay(1000)
+                agentBridgeViewModel.clearError()
+            }
+        }
+        
+        // Processing overlay for agent operations
+        if (agentUiState.isProcessingOperation) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardColor)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator(color = accentColor)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            "Sending to node...",
+                            color = textColor,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+        
+        // Confirm Remove Staking Dialog
+        showRemoveStakingConfirmDialog?.let { address ->
+            RemoveStakingConfirmDialog(
+                address = address,
+                isCurrentWallet = address == agentUiState.walletAddress,
+                isDarkTheme = isDarkTheme,
+                onConfirm = {
+                    agentBridgeViewModel.removeStakingKey(address)
+                    showRemoveStakingConfirmDialog = null
+                },
+                onDismiss = { showRemoveStakingConfirmDialog = null }
+            )
+        }
+        
+        // Staking Result Dialog (success/error)
+        showStakingResultDialog?.let { result ->
+            StakingResultDialog(
+                result = result,
+                isDarkTheme = isDarkTheme,
+                onDismiss = { showStakingResultDialog = null }
+            )
+        }
+        
+        // Rolls Operation Result Dialog (buy/sell success/error)
+        showRollsOperationResult?.let { result ->
+            StakingResultDialog(
+                result = result,
+                isDarkTheme = isDarkTheme,
+                onDismiss = { showRollsOperationResult = null }
+            )
+        }
     }
 }
 
 @Composable
 private fun RollsBalanceCard(
     stakingInfo: StakingInfo?,
+    isWalletRegisteredForStaking: Boolean = false,
     isDarkTheme: Boolean,
     cardColor: Color,
     textColor: Color,
@@ -494,54 +755,165 @@ private fun RollsBalanceCard(
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                // Details row in a subtle container
+                // Rolls section - Like Massa Explorer (Final / Candidate / Active)
+                val finalRolls = stakingInfo?.finalRolls ?: 0
+                val candidateRolls = stakingInfo?.candidateRolls ?: 0
+                val activeRolls = stakingInfo?.activeRolls ?: 0
+                val pendingRolls = maxOf(0, finalRolls - activeRolls)
+                
+                // Rolls label
+                Text(
+                    text = "Rolls",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Rolls row - Final / Candidate / Active
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Final Rolls
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.08f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Final",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "$finalRolls",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF4ADE80)
+                            )
+                        }
+                    }
+                    
+                    // Candidate Rolls
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.08f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Candidate",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "$candidateRolls",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF667eea)
+                            )
+                        }
+                    }
+                    
+                    // Active Rolls
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.08f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Active",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "$activeRolls",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (activeRolls > 0) Color(0xFF4ADE80) else Color(0xFFFF9800)
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Balance Section
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color.White.copy(alpha = 0.1f)
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF667eea).copy(alpha = 0.15f)
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        StakingStatItem(
-                            label = "Final",
-                            value = "${stakingInfo?.finalRolls ?: 0}",
-                            textColor = Color.White,
-                            secondaryTextColor = Color.White.copy(alpha = 0.6f)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.AccountBalanceWallet,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = Color(0xFF667eea)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Balance",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                        }
+                        Text(
+                            text = "${String.format("%.4f", stakingInfo?.balance?.toDoubleOrNull() ?: 0.0)} MAS",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
-                        
-                        // Divider
-                        Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(40.dp)
-                                .background(Color.White.copy(alpha = 0.2f))
-                        )
-                        
-                        StakingStatItem(
-                            label = "Pending",
-                            value = "${stakingInfo?.candidateRolls ?: 0}",
-                            textColor = Color.White,
-                            secondaryTextColor = Color.White.copy(alpha = 0.6f)
-                        )
-                        
-                        // Divider
-                        Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(40.dp)
-                                .background(Color.White.copy(alpha = 0.2f))
-                        )
-                        
-                        StakingStatItem(
-                            label = "Available",
-                            value = String.format("%.1f", stakingInfo?.balance?.toDoubleOrNull() ?: 0.0),
-                            textColor = Color.White,
-                            secondaryTextColor = Color.White.copy(alpha = 0.6f)
-                        )
+                    }
+                }
+                
+                // Warning if there are pending rolls AND wallet is registered for staking
+                // Only show this if we know the wallet is registered and rolls aren't active yet
+                if (pendingRolls > 0 && isWalletRegisteredForStaking && activeRolls < finalRolls) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFFF9800).copy(alpha = 0.15f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Color(0xFFFF9800)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "$pendingRolls roll${if (pendingRolls > 1) "s" else ""} pending activation (~3 cycles)",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFFFF9800)
+                            )
+                        }
                     }
                 }
                 
@@ -644,6 +1016,37 @@ private fun StakingStatItem(
     secondaryTextColor: Color
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = textColor
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = secondaryTextColor
+        )
+    }
+}
+
+@Composable
+private fun RollStatWithIcon(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    iconTint: Color,
+    textColor: Color,
+    secondaryTextColor: Color
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = iconTint
+        )
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = value,
             style = MaterialTheme.typography.titleMedium,
@@ -890,6 +1293,1229 @@ private fun StakingHelpDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Got it", color = Color(0xFF6366F1), fontWeight = FontWeight.SemiBold)
+            }
+        }
+    )
+}
+/**
+ * Card for connecting to Massa Agent Desktop - shows node info when connected
+ */
+@Composable
+private fun AgentConnectionCard(
+    connectionState: AgentConnectionState,
+    nodeStatus: com.massapay.android.network.agentbridge.AgentNodeStatus?,
+    stakingInfo: com.massapay.android.network.agentbridge.AgentStakingInfo?,
+    isDarkTheme: Boolean,
+    cardColor: Color,
+    textColor: Color,
+    secondaryTextColor: Color,
+    accentColor: Color,
+    iconContainerColor: Color,
+    iconTintColor: Color,
+    onClick: () -> Unit,
+    onRefresh: () -> Unit
+) {
+    val isConnected = connectionState is AgentConnectionState.Connected
+    val isNodeConnected = nodeStatus?.connected == true
+    val statusColor = when {
+        isNodeConnected -> Color(0xFF4CAF50)
+        isConnected -> Color(0xFFFFA726)
+        else -> secondaryTextColor
+    }
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // Header row - clickable to open connection dialog
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onClick),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Icon
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when {
+                                isNodeConnected -> Color(0xFF4CAF50)
+                                isConnected -> Color(0xFFFFA726)
+                                else -> iconContainerColor
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        when {
+                            isNodeConnected -> Icons.Default.Computer
+                            isConnected -> Icons.Default.Sync
+                            else -> Icons.Default.Link
+                        },
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = iconTintColor
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(16.dp))
+                
+                // Text content
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Massa Agent",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = textColor
+                    )
+                    
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(statusColor)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = when (connectionState) {
+                                is AgentConnectionState.Connected -> {
+                                    if (isNodeConnected) "Node connected • Cycle ${nodeStatus?.currentCycle ?: "-"}"
+                                    else "Agent connected • Waiting for node"
+                                }
+                                is AgentConnectionState.Connecting -> "Connecting..."
+                                is AgentConnectionState.Error -> connectionState.message
+                                else -> "Tap to connect to your PC"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (connectionState is AgentConnectionState.Error) Color(0xFFEF4444) else secondaryTextColor
+                        )
+                    }
+                }
+                
+                // Refresh or Arrow icon
+                if (isConnected) {
+                    IconButton(onClick = onRefresh) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Refresh",
+                            tint = accentColor
+                        )
+                    }
+                } else {
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = secondaryTextColor
+                    )
+                }
+            }
+            
+            // Show node details when connected
+            if (isConnected && nodeStatus != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Divider(color = secondaryTextColor.copy(alpha = 0.2f))
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Node info grid
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    NodeInfoItem(
+                        label = "Version",
+                        value = nodeStatus.version ?: "-",
+                        textColor = textColor,
+                        secondaryTextColor = secondaryTextColor
+                    )
+                    NodeInfoItem(
+                        label = "Cycle",
+                        value = nodeStatus.currentCycle?.toString() ?: "-",
+                        textColor = textColor,
+                        secondaryTextColor = secondaryTextColor
+                    )
+                    NodeInfoItem(
+                        label = "Peers",
+                        value = nodeStatus.connectedPeers?.toString() ?: "-",
+                        textColor = textColor,
+                        secondaryTextColor = secondaryTextColor
+                    )
+                }
+                
+                // Show staking info from node if available
+                if (stakingInfo != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        NodeInfoItem(
+                            label = "Rolls (Node)",
+                            value = stakingInfo.finalRolls.toString(),
+                            textColor = textColor,
+                            secondaryTextColor = secondaryTextColor
+                        )
+                        NodeInfoItem(
+                            label = "Candidate",
+                            value = stakingInfo.candidateRolls.toString(),
+                            textColor = textColor,
+                            secondaryTextColor = secondaryTextColor
+                        )
+                        NodeInfoItem(
+                            label = "Active",
+                            value = stakingInfo.activeRolls.toString(),
+                            textColor = textColor,
+                            secondaryTextColor = secondaryTextColor
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NodeInfoItem(
+    label: String,
+    value: String,
+    textColor: Color,
+    secondaryTextColor: Color
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = textColor
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = secondaryTextColor
+        )
+    }
+}
+
+/**
+ * Remote Staking Operations Card - Buy/Sell rolls via Massa Agent
+ */
+@Composable
+private fun RemoteStakingOperationsCard(
+    stakingInfo: com.massapay.android.network.agentbridge.AgentStakingInfo?,
+    isProcessing: Boolean,
+    isDarkTheme: Boolean,
+    cardColor: Color,
+    textColor: Color,
+    secondaryTextColor: Color,
+    accentColor: Color,
+    onBuyRolls: () -> Unit,
+    onSellRolls: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFF667eea),
+                            Color(0xFF764ba2)
+                        )
+                    ),
+                    shape = RoundedCornerShape(20.dp)
+                )
+                .padding(20.dp)
+        ) {
+            Column {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Bolt,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Node Staking",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                    
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.2f)
+                    ) {
+                        Text(
+                            "LIVE",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Balance info from node
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = stakingInfo?.finalRolls?.toString() ?: "0",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            "Final Rolls",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                    
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(50.dp)
+                            .background(Color.White.copy(alpha = 0.3f))
+                    )
+                    
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = stakingInfo?.candidateRolls?.toString() ?: "0",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            "Candidate",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                    
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(50.dp)
+                            .background(Color.White.copy(alpha = 0.3f))
+                    )
+                    
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = String.format("%.1f", stakingInfo?.balance?.toDoubleOrNull() ?: 0.0),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            "Balance",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                // Action buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = onBuyRolls,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = Color(0xFF667eea)
+                        ),
+                        enabled = !isProcessing
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Buy Rolls", fontWeight = FontWeight.SemiBold)
+                    }
+                    
+                    OutlinedButton(
+                        onClick = onSellRolls,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color.White
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color.White.copy(alpha = 0.5f)),
+                        enabled = !isProcessing && (stakingInfo?.finalRolls ?: 0) > 0
+                    ) {
+                        Icon(Icons.Default.Remove, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Sell Rolls", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Staking Addresses Card - Register/Remove staking addresses
+ */
+@Composable
+private fun StakingKeysCard(
+    stakingAddresses: List<String>,
+    walletAddress: String?,
+    isProcessing: Boolean,
+    isDarkTheme: Boolean,
+    cardColor: Color,
+    textColor: Color,
+    secondaryTextColor: Color,
+    accentColor: Color,
+    onRegisterKey: () -> Unit,
+    onRemoveKey: (String) -> Unit
+) {
+    // Check if current wallet is already registered
+    val isWalletRegistered = walletAddress != null && stakingAddresses.contains(walletAddress)
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        modifier = Modifier.size(40.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isWalletRegistered) Color(0xFF10B981).copy(alpha = 0.15f) else accentColor.copy(alpha = 0.15f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                if (isWalletRegistered) Icons.Default.CheckCircle else Icons.Default.Key,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp),
+                                tint = if (isWalletRegistered) Color(0xFF10B981) else accentColor
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            "Staking Addresses",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = textColor
+                        )
+                        Text(
+                            if (isWalletRegistered) "Your wallet is active" else "${stakingAddresses.size} registered",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isWalletRegistered) Color(0xFF10B981) else secondaryTextColor
+                        )
+                    }
+                }
+                
+                // Only show Register button if wallet is NOT already registered
+                if (!isWalletRegistered) {
+                    Surface(
+                        modifier = Modifier.size(40.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = accentColor.copy(alpha = 0.15f),
+                        onClick = onRegisterKey
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            if (isProcessing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = accentColor,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Register address",
+                                    modifier = Modifier.size(22.dp),
+                                    tint = accentColor
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (stakingAddresses.isEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isDarkTheme) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.03f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = secondaryTextColor
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "No addresses registered",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = secondaryTextColor,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Register your wallet to start staking and earning rewards",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = secondaryTextColor.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // List of staking addresses
+                stakingAddresses.forEach { address ->
+                    val isCurrentWallet = address == walletAddress
+                    
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isCurrentWallet) 
+                            accentColor.copy(alpha = 0.1f) 
+                        else 
+                            if (isDarkTheme) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.03f)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${address.take(10)}...${address.takeLast(8)}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = textColor
+                                )
+                                if (isCurrentWallet) {
+                                    Text(
+                                        text = "Your wallet",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = accentColor
+                                    )
+                                }
+                            }
+                            
+                            IconButton(
+                                onClick = { onRemoveKey(address) },
+                                enabled = !isProcessing
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Remove",
+                                    tint = Color(0xFFEF4444)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Rewards Card - Display staking rewards
+ */
+@Composable
+private fun RewardsCard(
+    rewards: StakingRewards?,
+    isDarkTheme: Boolean,
+    cardColor: Color,
+    textColor: Color,
+    secondaryTextColor: Color,
+    accentColor: Color,
+    onRefresh: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        modifier = Modifier.size(40.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF4ADE80).copy(alpha = 0.15f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.EmojiEvents,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp),
+                                tint = Color(0xFF4ADE80)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        "Staking Rewards",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = textColor
+                    )
+                }
+                
+                IconButton(onClick = onRefresh) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = "Refresh",
+                        tint = accentColor
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Total rewards
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = if (isDarkTheme) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.03f)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            "Total Earned",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = secondaryTextColor
+                        )
+                        Text(
+                            text = if (rewards != null) {
+                                val total = rewards.totalRewards.toDoubleOrNull() ?: 0.0
+                                String.format("%.4f MAS", total)
+                            } else {
+                                "-- MAS"
+                            },
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF4ADE80)
+                        )
+                    }
+                    
+                    Icon(
+                        Icons.Default.TrendingUp,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                        tint = Color(0xFF4ADE80).copy(alpha = 0.5f)
+                    )
+                }
+            }
+            
+            // Recent cycles
+            if (rewards != null && rewards.cycleRewards.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text(
+                    "Recent Cycles",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = secondaryTextColor
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                rewards.cycleRewards.take(5).forEach { cycle ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "Cycle ${cycle.cycle}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = secondaryTextColor
+                        )
+                        val rewardAmount = cycle.reward.toDoubleOrNull() ?: 0.0
+                        Text(
+                            "+${String.format("%.4f", rewardAmount)} MAS",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF4ADE80)
+                        )
+                    }
+                }
+            } else {
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Text(
+                    "No rewards data available yet. Make sure you have rolls registered for staking.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = secondaryTextColor,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Dialog to confirm starting staking (auto uses wallet credentials)
+ */
+@Composable
+private fun StartStakingConfirmDialog(
+    rollCount: Int,
+    isDarkTheme: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val dialogColor = if (isDarkTheme) Color(0xFF121212) else Color.White
+    val textColor = if (isDarkTheme) Color.White else Color.Black
+    val accentColor = Color(0xFF6366F1)
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = dialogColor,
+        shape = RoundedCornerShape(24.dp),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = accentColor
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    "Start Staking",
+                    fontWeight = FontWeight.Bold,
+                    color = textColor
+                )
+            }
+        },
+        text = {
+            Column {
+                Text(
+                    "You are about to start staking with your $rollCount roll(s).",
+                    color = textColor,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = accentColor.copy(alpha = 0.1f)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = null,
+                                tint = accentColor,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "What happens next:",
+                                fontWeight = FontWeight.Medium,
+                                color = textColor
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "• Your wallet will be registered on the node\n" +
+                            "• Rolls will become active in ~2 hours\n" +
+                            "• You'll earn MAS for each block created",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = textColor.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF4CAF50).copy(alpha = 0.1f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Security,
+                            contentDescription = null,
+                            tint = Color(0xFF4CAF50),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Your wallet credentials are used securely",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF4CAF50)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(
+                    Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Start Staking", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = textColor.copy(alpha = 0.7f))
+            }
+        }
+    )
+}
+
+/**
+ * Dialog to register staking key
+ */
+@Composable
+private fun RegisterStakingKeyDialog(
+    isDarkTheme: Boolean,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var secretKey by remember { mutableStateOf("") }
+    var showKey by remember { mutableStateOf(false) }
+    
+    val dialogColor = if (isDarkTheme) Color(0xFF121212) else Color.White
+    val textColor = if (isDarkTheme) Color.White else Color.Black
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = dialogColor,
+        shape = RoundedCornerShape(24.dp),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Key,
+                    contentDescription = null,
+                    tint = Color(0xFF6366F1)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    "Register Staking Key",
+                    fontWeight = FontWeight.Bold,
+                    color = textColor
+                )
+            }
+        },
+        text = {
+            Column {
+                Text(
+                    "Enter your wallet's secret key to register it for staking on the node.",
+                    color = textColor.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFFFFA726).copy(alpha = 0.1f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = Color(0xFFFFA726),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Your secret key will be sent securely to your node",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFFFA726)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                OutlinedTextField(
+                    value = secretKey,
+                    onValueChange = { secretKey = it },
+                    label = { Text("Secret Key") },
+                    placeholder = { Text("S1...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = if (showKey) 
+                        androidx.compose.ui.text.input.VisualTransformation.None 
+                    else 
+                        androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { showKey = !showKey }) {
+                            Icon(
+                                if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (showKey) "Hide" else "Show"
+                            )
+                        }
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6366F1),
+                        unfocusedBorderColor = textColor.copy(alpha = 0.3f)
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(secretKey) },
+                enabled = secretKey.isNotBlank() && secretKey.startsWith("S"),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF6366F1),
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Register", fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = textColor.copy(alpha = 0.7f))
+            }
+        }
+    )
+}
+
+/**
+ * Confirmation dialog before removing staking address
+ */
+@Composable
+private fun RemoveStakingConfirmDialog(
+    address: String,
+    isCurrentWallet: Boolean,
+    isDarkTheme: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val dialogColor = if (isDarkTheme) Color(0xFF121212) else Color.White
+    val textColor = if (isDarkTheme) Color.White else Color.Black
+    val warningColor = Color(0xFFEF4444)
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = dialogColor,
+        shape = RoundedCornerShape(24.dp),
+        icon = {
+            Surface(
+                modifier = Modifier.size(56.dp),
+                shape = CircleShape,
+                color = warningColor.copy(alpha = 0.15f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = warningColor,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+        },
+        title = {
+            Text(
+                "Stop Staking?",
+                fontWeight = FontWeight.Bold,
+                color = textColor,
+                textAlign = TextAlign.Center
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    "You are about to stop staking for this address:",
+                    color = textColor.copy(alpha = 0.8f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isDarkTheme) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "${address.take(12)}...${address.takeLast(10)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = textColor
+                        )
+                        if (isCurrentWallet) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF6366F1).copy(alpha = 0.2f)
+                            ) {
+                                Text(
+                                    "  Your wallet  ",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF6366F1),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = warningColor.copy(alpha = 0.1f)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = null,
+                                tint = warningColor,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "What will happen:",
+                                fontWeight = FontWeight.Medium,
+                                color = textColor
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "• This address will stop generating rewards\n" +
+                            "• Your rolls will remain intact\n" +
+                            "• You can re-register anytime",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = textColor.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = warningColor),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Stop Staking", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = textColor.copy(alpha = 0.7f))
+            }
+        }
+    )
+}
+
+/**
+ * Result dialog showing success or error for staking operations
+ */
+@Composable
+private fun StakingResultDialog(
+    result: StakingResultInfo,
+    isDarkTheme: Boolean,
+    onDismiss: () -> Unit
+) {
+    val dialogColor = if (isDarkTheme) Color(0xFF121212) else Color.White
+    val textColor = if (isDarkTheme) Color.White else Color.Black
+    val statusColor = if (result.isSuccess) Color(0xFF4CAF50) else Color(0xFFEF4444)
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = dialogColor,
+        shape = RoundedCornerShape(24.dp),
+        icon = {
+            Surface(
+                modifier = Modifier.size(64.dp),
+                shape = CircleShape,
+                color = statusColor.copy(alpha = 0.15f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        if (result.isSuccess) Icons.Default.CheckCircle else Icons.Default.Error,
+                        contentDescription = null,
+                        tint = statusColor,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+            }
+        },
+        title = {
+            Text(
+                result.title,
+                fontWeight = FontWeight.Bold,
+                color = textColor,
+                textAlign = TextAlign.Center
+            )
+        },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    result.message,
+                    color = textColor.copy(alpha = 0.8f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+                
+                if (result.isSuccess) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = statusColor.copy(alpha = 0.1f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                when (result.operationType) {
+                                    StakingOperationType.REGISTER_STAKING -> Icons.Default.PlayArrow
+                                    StakingOperationType.REMOVE_STAKING -> Icons.Default.Stop
+                                    StakingOperationType.BUY_ROLLS -> Icons.Default.Add
+                                    StakingOperationType.SELL_ROLLS -> Icons.Default.Remove
+                                },
+                                contentDescription = null,
+                                tint = statusColor,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                when (result.operationType) {
+                                    StakingOperationType.REGISTER_STAKING -> "Now earning rewards!"
+                                    StakingOperationType.REMOVE_STAKING -> "Staking stopped"
+                                    StakingOperationType.BUY_ROLLS -> "Rolls added to wallet"
+                                    StakingOperationType.SELL_ROLLS -> "Rolls sold successfully"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = statusColor
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (result.isSuccess) statusColor else Color(0xFF6366F1)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    if (result.isSuccess) "Great!" else "OK",
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     )

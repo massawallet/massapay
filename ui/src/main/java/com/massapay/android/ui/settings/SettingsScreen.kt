@@ -483,7 +483,7 @@ fun SettingsScreen(
                     ModernSettingsItem(
                         icon = Icons.Outlined.Info,
                         title = "MassaConnect",
-                        subtitle = "Version 1.3.0 - Tap to view details",
+                        subtitle = "Version 1.4.0 - Tap to view details",
                         onClick = { showAboutDialog = true }
                     )
                 }
@@ -558,7 +558,7 @@ fun SettingsScreen(
                                             color = Color.White.copy(alpha = 0.15f)
                                         ) {
                                             Text(
-                                                text = "v1.3.0",
+                                                text = "v1.4.0",
                                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                                                 style = MaterialTheme.typography.labelLarge,
                                                 color = Color.White

@@ -304,6 +304,7 @@ fun DashboardScreen(
                         currentPrice = uiState.currentPrice,
                         priceChange24h = uiState.priceChange24h,
                         isLoading = uiState.isLoading,
+                        isBalanceHidden = uiState.isBalanceHidden,
                         shimmerAlpha = shimmerAlpha,
                         cardBackground = cardBackground,
                         textPrimary = textPrimary,
@@ -311,6 +312,7 @@ fun DashboardScreen(
                         accentColor = web3Cyan,
                         onChartsClick = onChartsClick,
                         onPortfolioClick = onPortfolioClick,
+                        onToggleVisibility = viewModel::toggleBalanceVisibility,
                         massaStats = uiState.massaStats
                     )
                 }
@@ -431,6 +433,7 @@ private fun Web3BalanceCard(
     currentPrice: Double,
     priceChange24h: Double,
     isLoading: Boolean,
+    isBalanceHidden: Boolean,
     shimmerAlpha: Float,
     cardBackground: Color,
     textPrimary: Color,
@@ -438,6 +441,7 @@ private fun Web3BalanceCard(
     accentColor: Color,
     onChartsClick: () -> Unit,
     onPortfolioClick: () -> Unit,
+    onToggleVisibility: () -> Unit,
     massaStats: com.massapay.android.price.model.MassaStats?
 ) {
     // Use totalPortfolioValue if available, otherwise fall back to MAS-only value
@@ -476,19 +480,38 @@ private fun Web3BalanceCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Top Section - Title and View Charts Button
+                // Top Section - Title with Eye Button and View Charts Button
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "Total Balance",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = textSecondary
-                    )
+                    // Total Balance text with eye icon next to it
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Total Balance",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = textSecondary
+                        )
+                        
+                        // Eye icon without container - respects dark/light theme
+                        IconButton(
+                            onClick = onToggleVisibility,
+                            modifier = Modifier.size(20.dp)
+                        ) {
+                            Icon(
+                                if (isBalanceHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (isBalanceHidden) "Show balance" else "Hide balance",
+                                tint = textSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                     
-                    // View Charts Button only
+                    // View Charts Button
                     IconButton(
                         onClick = onChartsClick,
                         modifier = Modifier
@@ -514,14 +537,26 @@ private fun Web3BalanceCard(
                         height = 48.dp
                     )
                 } else {
-                    com.massapay.android.ui.components.AnimatedCurrencyCounter(
-                        targetValue = displayUsdValue,
-                        style = MaterialTheme.typography.displaySmall.copy(
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                            fontSize = 42.sp
-                        ),
-                        color = textPrimary
-                    )
+                    if (isBalanceHidden) {
+                        Text(
+                            text = "••••••",
+                            style = MaterialTheme.typography.displaySmall.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                fontSize = 42.sp,
+                                letterSpacing = 8.sp
+                            ),
+                            color = textPrimary
+                        )
+                    } else {
+                        com.massapay.android.ui.components.AnimatedCurrencyCounter(
+                            targetValue = displayUsdValue,
+                            style = MaterialTheme.typography.displaySmall.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                fontSize = 42.sp
+                            ),
+                            color = textPrimary
+                        )
+                    }
                 }
                 
                 // MAS Balance with Portfolio button next to it - Animated
@@ -536,15 +571,26 @@ private fun Web3BalanceCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        com.massapay.android.ui.components.AnimatedCryptoCounter(
-                            targetValue = balance,
-                            symbol = "MAS",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                            ),
-                            color = textPrimary,
-                            decimals = 4
-                        )
+                        if (isBalanceHidden) {
+                            Text(
+                                text = "•••• MAS",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                    letterSpacing = 4.sp
+                                ),
+                                color = textPrimary
+                            )
+                        } else {
+                            com.massapay.android.ui.components.AnimatedCryptoCounter(
+                                targetValue = balance,
+                                symbol = "MAS",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                                ),
+                                color = textPrimary,
+                                decimals = 4
+                            )
+                        }
                         
                         // Portfolio Button - next to MAS balance
                         Surface(
