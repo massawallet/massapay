@@ -3,13 +3,14 @@ package com.massapay.android.ui.onboarding
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -17,9 +18,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
 import androidx.hilt.navigation.compose.hiltViewModel
 
-@OptIn(ExperimentalAnimationApi::class)
+@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingFlowNew(
     onComplete: () -> Unit,
@@ -29,31 +32,10 @@ fun OnboardingFlowNew(
     val uiState by viewModel.uiState.collectAsState()
     var showImportDialog by remember { mutableStateOf(false) }
 
-    // Force light theme for all onboarding screens
-    // Override the color scheme to use light colors
-    val lightColorScheme = lightColorScheme(
-        primary = Color(0xFF1976D2),
-        onPrimary = Color.White,
-        primaryContainer = Color(0xFFBBDEFB),
-        onPrimaryContainer = Color(0xFF0D47A1),
-        secondary = Color(0xFF424242),
-        onSecondary = Color.White,
-        background = Color.White,
-        onBackground = Color.Black,
-        surface = Color(0xFFFAFAFA),
-        onSurface = Color.Black,
-        surfaceVariant = Color(0xFFF5F5F5),
-        onSurfaceVariant = Color(0xFF424242),
-        outline = Color(0xFFBDBDBD),
-        error = Color(0xFFD32F2F),
-        onError = Color.White
-    )
-    
-    MaterialTheme(colorScheme = lightColorScheme) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = Color.White
-        ) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
         // Handle completion - esperar un frame para asegurar que todo se guardó
         LaunchedEffect(uiState.currentStep) {
             if (uiState.currentStep == OnboardingStepNew.COMPLETED) {
@@ -64,72 +46,96 @@ fun OnboardingFlowNew(
 
         // Show error if exists
         uiState.error?.let { error ->
-            AlertDialog(
-                onDismissRequest = { /* No permitir cerrar hasta resolver */ },
-                title = { Text("Error") },
-                text = { Text(error) },
-                confirmButton = {
+            OnboardingModalSheet(
+                title = "Error",
+                icon = Icons.Default.Error,
+                iconTint = MaterialTheme.colorScheme.error,
+                onDismiss = { viewModel.goBack() },
+                actions = {
                     TextButton(onClick = { viewModel.goBack() }) {
                         Text("OK")
                     }
                 }
-            )
-        }
-
-        AnimatedContent(
-            targetState = uiState.currentStep,
-            transitionSpec = {
-                slideInHorizontally(
-                    initialOffsetX = { 300 },
-                    animationSpec = tween(300)
-                ) + fadeIn() togetherWith
-                slideOutHorizontally(
-                    targetOffsetX = { -300 },
-                    animationSpec = tween(300)
-                ) + fadeOut()
-            },
-            label = "onboarding_transition"
-        ) { step ->
-            when (step) {
-                OnboardingStepNew.WELCOME -> {
-                    WelcomeScreenNew(
-                        onCreateWallet = { viewModel.startCreateWallet() },
-                        onImportWallet = { showImportDialog = true }
-                    )
-                }
-
-                OnboardingStepNew.GENERATE_SEED -> {
-                    GenerateSeedScreen(
-                        seedWords = uiState.seedWords,
-                        onContinue = { viewModel.moveToVerifySeed() },
-                        onBack = { viewModel.goBack() }
-                    )
-                }
-
-                OnboardingStepNew.VERIFY_SEED -> {
-                    VerifySeedScreen(
-                        seedWords = uiState.seedWords,
-                        onVerified = { viewModel.onSeedVerified() },
-                        onBack = { viewModel.goBack() }
-                    )
-                }
-
-                OnboardingStepNew.SETUP_PIN -> {
-                    PinSetupScreen(
-                        onPinCreated = { pin, biometric ->
-                            viewModel.onPinCreated(pin, biometric)
-                        },
-                        onBack = { viewModel.goBack() }
-                    )
-                }
-
-                OnboardingStepNew.COMPLETED -> {
-                    // This should trigger onComplete via LaunchedEffect
-                }
+            ) {
+                Text(error)
             }
         }
 
-        // Import Dialog
+        WelcomeScreenNew(
+            onCreateWallet = { viewModel.startCreateWallet() },
+            onImportWallet = { showImportDialog = true }
+        )
+
+        when (uiState.currentStep) {
+            OnboardingStepNew.GENERATE_SEED -> {
+                ModalBottomSheet(
+                    onDismissRequest = { viewModel.goBack() },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = MaterialTheme.colorScheme.background,
+                    dragHandle = { BottomSheetDefaults.DragHandle() }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(0.9f)
+                    ) {
+                        GenerateSeedScreen(
+                            seedWords = uiState.seedWords,
+                            onContinue = { viewModel.moveToVerifySeed() },
+                            onBack = { viewModel.goBack() }
+                        )
+                    }
+                }
+            }
+
+            OnboardingStepNew.VERIFY_SEED -> {
+                ModalBottomSheet(
+                    onDismissRequest = { viewModel.goBack() },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = MaterialTheme.colorScheme.background,
+                    dragHandle = { BottomSheetDefaults.DragHandle() }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(0.9f)
+                    ) {
+                        VerifySeedScreen(
+                            seedWords = uiState.seedWords,
+                            onVerified = { viewModel.onSeedVerified() },
+                            onBack = { viewModel.goBack() }
+                        )
+                    }
+                }
+            }
+
+            OnboardingStepNew.SETUP_PIN -> {
+                ModalBottomSheet(
+                    onDismissRequest = { viewModel.goBack() },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = MaterialTheme.colorScheme.background,
+                    dragHandle = { BottomSheetDefaults.DragHandle() }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(0.9f)
+                    ) {
+                        PinSetupScreen(
+                            onPinCreated = { pin, biometric ->
+                                viewModel.onPinCreated(pin, biometric)
+                            },
+                            onBack = { viewModel.goBack() }
+                        )
+                    }
+                }
+            }
+
+            OnboardingStepNew.WELCOME,
+            OnboardingStepNew.COMPLETED -> Unit
+        }
+
+        // Import Sheet
         if (showImportDialog) {
             ImportWalletDialog(
                 onDismiss = { showImportDialog = false },
@@ -139,8 +145,64 @@ fun OnboardingFlowNew(
                 }
             )
         }
-        }  // Close Surface
-    }  // Close MaterialTheme
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OnboardingModalSheet(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onDismiss: () -> Unit,
+    iconTint: Color = MaterialTheme.colorScheme.primary,
+    actions: @Composable RowScope.() -> Unit = {},
+    content: @Composable ColumnScope.() -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.9f)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(40.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    textAlign = TextAlign.Center
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                content = content
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 18.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+                content = actions
+            )
+        }
+    }
 }
 
 @Composable
@@ -154,21 +216,49 @@ private fun ImportWalletDialog(
     var privateKeyInput by remember { mutableStateOf("") }
     val clipboardManager = androidx.compose.ui.platform.LocalContext.current.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
-        title = {
-            Text(
-                text = "Import Wallet",
-                fontSize = 24.sp,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+    OnboardingModalSheet(
+        title = "Import Wallet",
+        icon = Icons.Default.Key,
+        onDismiss = onDismiss,
+        actions = {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                )
             ) {
+                Text("Cancel")
+            }
+            Spacer(Modifier.width(8.dp))
+            val isValid = if (importType == "mnemonic") {
+                val filledWords = words.take(wordCount).filter { it.isNotBlank() }
+                filledWords.size == wordCount
+            } else {
+                privateKeyInput.startsWith("S1") && privateKeyInput.length > 10
+            }
+
+            Button(
+                onClick = {
+                    val importData = if (importType == "mnemonic") {
+                        words.take(wordCount).joinToString(" ")
+                    } else {
+                        "S1_IMPORT:$privateKeyInput"
+                    }
+                    onImport(importData)
+                },
+                enabled = isValid,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Black,
+                    contentColor = Color.White,
+                    disabledContainerColor = Color.LightGray,
+                    disabledContentColor = Color.Gray
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Import Wallet")
+            }
+        }
+    ) {
                 // Import type selector (Mnemonic vs Private Key)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -389,46 +479,5 @@ private fun ImportWalletDialog(
                         fontSize = 12.sp
                     )
                 }
-            }
-        },
-        confirmButton = {
-            val isValid = if (importType == "mnemonic") {
-                val filledWords = words.take(wordCount).filter { it.isNotBlank() }
-                filledWords.size == wordCount
-            } else {
-                privateKeyInput.startsWith("S1") && privateKeyInput.length > 10
-            }
-            
-            Button(
-                onClick = { 
-                    val importData = if (importType == "mnemonic") {
-                        words.take(wordCount).joinToString(" ")
-                    } else {
-                        "S1_IMPORT:$privateKeyInput" // Special marker for S1 import
-                    }
-                    onImport(importData)
-                },
-                enabled = isValid,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Black,
-                    contentColor = Color.White,
-                    disabledContainerColor = Color.LightGray,
-                    disabledContentColor = Color.Gray
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("Import Wallet")
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                )
-            ) {
-                Text("Cancel")
-            }
-        }
-    )
+    }
 }

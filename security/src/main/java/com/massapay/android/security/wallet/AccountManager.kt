@@ -334,8 +334,9 @@ class AccountManager @Inject constructor(
     fun setActiveAccount(accountId: String): Result<Account> {
         return try {
             val currentAccounts = _accounts.value.toMutableList()
-            val account = currentAccounts.find { it.id == accountId }
-                ?: return Result.failure(Exception("Account not found"))
+            if (currentAccounts.none { it.id == accountId }) {
+                return Result.failure(Exception("Account not found"))
+            }
             
             // Deactivate all accounts
             val updatedAccounts = currentAccounts.map { it.copy(isActive = false) }
@@ -509,6 +510,7 @@ class AccountManager @Inject constructor(
             _activeAccount.value = accounts.find { it.id == activeId && it.isActive }
                 ?: accounts.find { it.isActive }
                 ?: accounts.firstOrNull()
+            _activeAccount.value?.address?.let { secureStorage.setActiveWallet(it) }
                 
         } catch (e: Exception) {
             android.util.Log.e("AccountManager", "Failed to load accounts", e)

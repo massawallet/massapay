@@ -7,6 +7,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -35,6 +36,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
+
+private val SettingsSheetMaxHeight = 0.9f
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -194,12 +197,65 @@ fun SettingsScreen(
                 }
             }
 
+            SettingsSection(title = "Advanced") {
+                ModernSettingsCard {
+                    ModernSettingsItem(
+                        icon = Icons.Outlined.Image,
+                        title = "NFT",
+                        subtitle = "Show NFT tools on the dashboard",
+                        showArrow = false,
+                        trailing = {
+                            Switch(
+                                checked = uiState.nftEnabled,
+                                onCheckedChange = viewModel::setNftEnabled
+                            )
+                        }
+                    )
+
+                    Divider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    ModernSettingsItem(
+                        icon = Icons.Outlined.SwapHoriz,
+                        title = "Swap",
+                        subtitle = "Enable token swap shortcuts",
+                        showArrow = false,
+                        trailing = {
+                            Switch(
+                                checked = uiState.swapEnabled,
+                                onCheckedChange = viewModel::setSwapEnabled
+                            )
+                        }
+                    )
+
+                    Divider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    ModernSettingsItem(
+                        icon = Icons.Outlined.Layers,
+                        title = "Staking",
+                        subtitle = "Show staking tools on the dashboard",
+                        showArrow = false,
+                        trailing = {
+                            Switch(
+                                checked = uiState.stakingEnabled,
+                                onCheckedChange = viewModel::setStakingEnabled
+                            )
+                        }
+                    )
+                }
+            }
+
             // Transaction History Backup Section
             SettingsSection(title = "Transaction History") {
                 var showExportSuccess by remember { mutableStateOf(false) }
-                var showImportDialog by remember { mutableStateOf(false) }
+                var showImportSheet by remember { mutableStateOf(false) }
                 var exportedFilePath by remember { mutableStateOf("") }
-                
+
                 ModernSettingsCard {
                     ModernSettingsItem(
                         icon = Icons.Outlined.Upload,
@@ -212,533 +268,363 @@ fun SettingsScreen(
                             }
                         }
                     )
-                    
+
                     Divider(
                         modifier = Modifier.padding(horizontal = 16.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
-                    
+
                     ModernSettingsItem(
                         icon = Icons.Outlined.Download,
                         title = "Import History",
                         subtitle = "Restore transaction history from backup",
-                        onClick = { showImportDialog = true }
+                        onClick = { showImportSheet = true }
                     )
                 }
-                
-                // Export Success Dialog
+
                 if (showExportSuccess) {
-                    AlertDialog(
-                        onDismissRequest = { showExportSuccess = false },
-                        icon = { 
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = Color(0xFF4CAF50),
-                                modifier = Modifier.size(48.dp)
-                            ) 
-                        },
-                        title = { 
-                            Text(
-                                "✓ Export Successful",
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                )
-                            ) 
-                        },
-                        text = {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text("Your transaction history has been exported successfully.")
-                                
-                                Card(
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                    )
-                                ) {
-                                    Column(modifier = Modifier.padding(12.dp)) {
-                                        Text(
-                                            "File saved to:",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Spacer(Modifier.height(4.dp))
-                                        Text(
-                                            exportedFilePath,
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                            ),
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                }
-                            }
-                        },
-                        confirmButton = {
+                    SettingsModalSheet(
+                        title = "Export Successful",
+                        icon = Icons.Default.CheckCircle,
+                        iconTint = Color(0xFF4CAF50),
+                        onDismiss = { showExportSuccess = false },
+                        actions = {
                             Button(
                                 onClick = { showExportSuccess = false },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF4CAF50)
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                            ) { Text("OK") }
+                        }
+                    ) {
+                        Text("Your transaction history has been exported successfully.")
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("File saved to:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    exportedFilePath,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
-                            ) {
-                                Text("OK")
                             }
                         }
-                    )
+                    }
                 }
-                
-                // Import Dialog - List available backup files
-                if (showImportDialog) {
+
+                if (showImportSheet) {
                     var availableBackups by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
                     var importSuccess by remember { mutableStateOf(false) }
                     var importedCount by remember { mutableStateOf(0) }
                     var importError by remember { mutableStateOf<String?>(null) }
-                    
-                    // Load available backup files
-                    LaunchedEffect(showImportDialog) {
+
+                    LaunchedEffect(showImportSheet) {
                         val downloadsDir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)
                         val backupFiles = downloadsDir?.listFiles { file ->
                             file.name.startsWith("massapay_backup_") && file.name.endsWith(".json")
                         }?.sortedByDescending { it.lastModified() } ?: emptyList()
                         availableBackups = backupFiles
                     }
-                    
-                    // Listen for errors from ViewModel
+
                     LaunchedEffect(uiState.error) {
                         if (uiState.error != null) {
                             importError = uiState.error
                             viewModel.clearError()
                         }
                     }
-                    
-                    AlertDialog(
-                        onDismissRequest = { 
-                            showImportDialog = false
+
+                    SettingsModalSheet(
+                        title = if (importSuccess) "Import Successful" else "Import History",
+                        icon = if (importSuccess) Icons.Default.CheckCircle else Icons.Outlined.Download,
+                        iconTint = if (importSuccess) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
+                        onDismiss = {
+                            showImportSheet = false
                             importSuccess = false
                             importError = null
                         },
-                        icon = { 
-                            Icon(
-                                if (importSuccess) Icons.Default.CheckCircle else Icons.Outlined.Download,
-                                contentDescription = null,
-                                tint = if (importSuccess) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(48.dp)
-                            ) 
-                        },
-                        title = { 
-                            Text(
-                                if (importSuccess) "✓ Import Successful" else "Import History",
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                )
-                            ) 
-                        },
-                        text = {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                if (importSuccess) {
-                                    Text("Successfully imported $importedCount new transactions to your history.")
-                                } else if (importError != null) {
-                                    Card(
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = MaterialTheme.colorScheme.errorContainer
-                                        )
-                                    ) {
-                                        Column(modifier = Modifier.padding(12.dp)) {
-                                            Text(
-                                                "Error",
-                                                style = MaterialTheme.typography.labelSmall.copy(
-                                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                                ),
-                                                color = MaterialTheme.colorScheme.error
-                                            )
-                                            Text(
-                                                importError ?: "",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onErrorContainer
-                                            )
-                                        }
-                                    }
-                                } else {
-                                    if (availableBackups.isEmpty()) {
-                                        Card(
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                            )
-                                        ) {
-                                            Column(
-                                                modifier = Modifier.padding(16.dp),
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.Outlined.FolderOpen,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(48.dp),
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                                Text(
-                                                    "No backup files found",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                                Text(
-                                                    "Export your transaction history first",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                                )
-                                            }
-                                        }
-                                    } else {
-                                        Text(
-                                            "Select a backup file to restore:",
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                                            )
-                                        )
-                                        
-                                        availableBackups.forEach { file ->
-                                            Card(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                colors = CardDefaults.cardColors(
-                                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                                ),
-                                                onClick = {
-                                                    viewModel.importTransactionHistory(file.absolutePath) { count ->
-                                                        importedCount = count
-                                                        importSuccess = true
-                                                    }
-                                                }
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(12.dp),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Column(modifier = Modifier.weight(1f)) {
-                                                        Text(
-                                                            file.name,
-                                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                                                            ),
-                                                            maxLines = 1
-                                                        )
-                                                        Spacer(Modifier.height(4.dp))
-                                                        Text(
-                                                            java.text.SimpleDateFormat("MMM dd, yyyy HH:mm", java.util.Locale.US)
-                                                                .format(java.util.Date(file.lastModified())),
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                        )
-                                                    }
-                                                    Icon(
-                                                        Icons.Default.ChevronRight,
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        confirmButton = {
-                            if (importSuccess || importError != null) {
+                        actions = {
+                            if (!importSuccess && importError == null) {
+                                TextButton(onClick = { showImportSheet = false }) { Text("Cancel") }
+                            } else {
                                 Button(
-                                    onClick = { 
-                                        showImportDialog = false
+                                    onClick = {
+                                        showImportSheet = false
                                         importSuccess = false
                                         importError = null
                                     },
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = if (importSuccess) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary
                                     )
+                                ) { Text("OK") }
+                            }
+                        }
+                    ) {
+                        when {
+                            importSuccess -> Text("Successfully imported $importedCount new transactions to your history.")
+                            importError != null -> Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                                Text(
+                                    importError ?: "",
+                                    modifier = Modifier.padding(12.dp),
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                            availableBackups.isEmpty() -> Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text("OK")
+                                    Icon(Icons.Outlined.FolderOpen, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("No backup files found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Export your transaction history first", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                                 }
                             }
-                        },
-                        dismissButton = {
-                            if (!importSuccess && importError == null) {
-                                TextButton(onClick = { showImportDialog = false }) {
-                                    Text("Cancel")
+                            else -> {
+                                Text("Select a backup file to restore:", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
+                                availableBackups.forEach { file ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                        onClick = {
+                                            viewModel.importTransactionHistory(file.absolutePath) { count ->
+                                                importedCount = count
+                                                importSuccess = true
+                                            }
+                                        }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(file.name, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), maxLines = 1)
+                                                Spacer(Modifier.height(4.dp))
+                                                Text(
+                                                    java.text.SimpleDateFormat("MMM dd, yyyy HH:mm", java.util.Locale.US).format(java.util.Date(file.lastModified())),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                        }
+                                    }
                                 }
                             }
                         }
-                    )
+                    }
                 }
             }
 
             // About Section - Collapsible
             SettingsSection(title = "About") {
-                var showAboutDialog by remember { mutableStateOf(false) }
-                
+                var showAboutSheet by remember { mutableStateOf(false) }
+                var donationCopied by remember { mutableStateOf(false) }
+                val donationAddress = "AU12TNZbt6n4bGRL3Xud2WP799M2KLYwKRu6jyX7oa462fJ8RqCsP"
+                val donationAddressShort = "${donationAddress.take(9)}...${donationAddress.takeLast(8)}"
+                val clipboardManager = LocalClipboardManager.current
+
+                LaunchedEffect(donationCopied) {
+                    if (donationCopied) {
+                        kotlinx.coroutines.delay(1500)
+                        donationCopied = false
+                    }
+                }
+
                 ModernSettingsCard {
                     ModernSettingsItem(
                         icon = Icons.Outlined.Info,
                         title = "MassaConnect",
-                        subtitle = "Version 1.4.0 - Tap to view details",
-                        onClick = { showAboutDialog = true }
+                        subtitle = "Version 1.5.0 - Tap to view details",
+                        onClick = { showAboutSheet = true }
                     )
                 }
-                
-                if (showAboutDialog) {
-                    Dialog(
-                        onDismissRequest = { showAboutDialog = false },
-                        properties = DialogProperties(usePlatformDefaultWidth = false)
+
+                if (showAboutSheet) {
+                    SettingsModalSheet(
+                        title = "MassaConnect",
+                        icon = Icons.Outlined.Info,
+                        onDismiss = { showAboutSheet = false },
+                        actions = {
+                            Button(onClick = { showAboutSheet = false }) { Text("Close") }
+                        }
                     ) {
-                        Card(
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth(0.92f)
-                                .wrapContentHeight(),
-                            shape = RoundedCornerShape(28.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                                .fillMaxWidth()
+                                .background(
+                                    brush = Brush.linearGradient(
+                                        colors = listOf(Color(0xFF1a1a2e), Color(0xFF16213e))
+                                    ),
+                                    shape = RoundedCornerShape(24.dp)
+                                )
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Column(
-                                modifier = Modifier.verticalScroll(rememberScrollState())
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // Header con gradiente
                                 Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(
-                                            brush = Brush.linearGradient(
-                                                colors = listOf(
-                                                    Color(0xFF1a1a2e),
-                                                    Color(0xFF16213e)
-                                                )
-                                            )
-                                        )
-                                        .padding(24.dp),
+                                    modifier = Modifier.size(72.dp).background(Color.White, RoundedCornerShape(20.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    Text(
+                                        text = "M",
+                                        style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold, fontSize = 36.sp),
+                                        color = Color.Black
+                                    )
+                                }
+                                Text("MassaConnect", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                                Surface(shape = RoundedCornerShape(20.dp), color = Color.White.copy(alpha = 0.15f)) {
+                                    Text("v1.5.0", modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), color = Color.White)
+                                }
+                                Text("Self-Custodial Wallet for Massa", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
+                            }
+                        }
+
+                        Text(
+                            text = "A secure, open-source cryptocurrency wallet built specifically for the Massa blockchain. Take full control of your digital assets with cutting-edge technology.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 22.sp
+                        )
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            AboutFeatureItem(icon = Icons.Outlined.Lock, label = "Non-Custodial")
+                            AboutFeatureItem(icon = Icons.Outlined.Code, label = "Open Source")
+                            AboutFeatureItem(icon = Icons.Outlined.Shield, label = "Secure")
+                        }
+
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                        Text("Technology Stack", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TechChip("Kotlin")
+                            TechChip("Jetpack Compose")
+                            TechChip("Material 3")
+                            TechChip("secp256k1")
+                            TechChip("Base58Check")
+                            TechChip("BIP-39/44")
+                        }
+
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Outlined.Code, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Developer", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("mderramus", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold))
+                            }
+                            Icon(Icons.Outlined.Verified, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        }
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        // Logo - Same style as Settings icons
-                                        Box(
-                                            modifier = Modifier
-                                                .size(72.dp)
-                                                .background(
-                                                    color = Color.White,
-                                                    shape = RoundedCornerShape(20.dp)
-                                                ),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "M",
-                                                style = MaterialTheme.typography.headlineLarge.copy(
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 36.sp
-                                                ),
-                                                color = Color.Black
-                                            )
-                                        }
-                                        
-                                        Text(
-                                            text = "MassaConnect",
-                                            style = MaterialTheme.typography.headlineMedium.copy(
-                                                fontWeight = FontWeight.Bold
-                                            ),
-                                            color = Color.White
+                                        Icon(
+                                            Icons.Default.Favorite,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(21.dp)
                                         )
-                                        
-                                        Surface(
-                                            shape = RoundedCornerShape(20.dp),
-                                            color = Color.White.copy(alpha = 0.15f)
-                                        ) {
-                                            Text(
-                                                text = "v1.4.0",
-                                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                                                style = MaterialTheme.typography.labelLarge,
-                                                color = Color.White
-                                            )
-                                        }
-                                        
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "Self-Custodial Wallet for Massa",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = Color.White.copy(alpha = 0.8f)
+                                            "Support development",
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            "Donations help keep MassaConnect moving.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
-                                
-                                // Contenido
-                                Column(
-                                    modifier = Modifier.padding(20.dp),
-                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    // Descripción
                                     Text(
-                                        text = "A secure, open-source cryptocurrency wallet built specifically for the Massa blockchain. Take full control of your digital assets with cutting-edge technology.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center,
-                                        lineHeight = 22.sp
+                                        donationAddressShort,
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1
                                     )
-                                    
-                                    // Stats Row - Same style as Settings icons
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceEvenly
+                                    IconButton(
+                                        onClick = {
+                                            clipboardManager.setText(AnnotatedString(donationAddress))
+                                            donationCopied = true
+                                        },
+                                        modifier = Modifier.size(36.dp)
                                     ) {
-                                        AboutFeatureItem(
-                                            icon = Icons.Outlined.Lock,
-                                            label = "Non-Custodial"
-                                        )
-                                        AboutFeatureItem(
-                                            icon = Icons.Outlined.Code,
-                                            label = "Open Source"
-                                        )
-                                        AboutFeatureItem(
-                                            icon = Icons.Outlined.Shield,
-                                            label = "Secure"
-                                        )
-                                    }
-                                    
-                                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                                    
-                                    // Technology Section
-                                    Text(
-                                        text = "Technology Stack",
-                                        style = MaterialTheme.typography.titleSmall.copy(
-                                            fontWeight = FontWeight.Bold
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    
-                                    // Tech chips
-                                    FlowRow(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        TechChip("Kotlin")
-                                        TechChip("Jetpack Compose")
-                                        TechChip("Material 3")
-                                        TechChip("secp256k1")
-                                        TechChip("Base58Check")
-                                        TechChip("BIP-39/44")
-                                    }
-                                    
-                                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                                    
-                                    // Developer
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(
-                                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                                                shape = RoundedCornerShape(12.dp)
-                                            )
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(40.dp)
-                                                .background(
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                    shape = CircleShape
-                                                ),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Code,
-                                                contentDescription = null,
-                                                tint = Color.White,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "Developer",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            Text(
-                                                text = "mderramus",
-                                                style = MaterialTheme.typography.bodyLarge.copy(
-                                                    fontWeight = FontWeight.SemiBold
-                                                ),
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                        }
                                         Icon(
-                                            imageVector = Icons.Outlined.Verified,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(24.dp)
+                                            if (donationCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                                            contentDescription = "Copy donation address",
+                                            tint = if (donationCopied) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
-                                    
-                                    // Social Links
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        OutlinedButton(
-                                            onClick = { 
-                                                val intent = android.content.Intent(
-                                                    android.content.Intent.ACTION_VIEW,
-                                                    android.net.Uri.parse("https://github.com/massawallet/massapay")
-                                                )
-                                                context.startActivity(intent)
-                                            },
-                                            modifier = Modifier.weight(1f),
-                                            shape = RoundedCornerShape(12.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Code,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text("GitHub")
-                                        }
-                                        OutlinedButton(
-                                            onClick = { 
-                                                val intent = android.content.Intent(
-                                                    android.content.Intent.ACTION_VIEW,
-                                                    android.net.Uri.parse("https://x.com/massaconnect")
-                                                )
-                                                context.startActivity(intent)
-                                            },
-                                            modifier = Modifier.weight(1f),
-                                            shape = RoundedCornerShape(12.dp)
-                                        ) {
-                                            Text("𝕏", fontWeight = FontWeight.Bold)
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text("Twitter")
-                                        }
-                                    }
-                                    
-                                    // Close Button
-                                    Button(
-                                        onClick = { showAboutDialog = false },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = Color(0xFF1a1a2e),
-                                            contentColor = Color.White
-                                        )
+                                }
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
                                     ) {
                                         Text(
-                                            text = "Close",
-                                            modifier = Modifier.padding(vertical = 4.dp)
+                                            "X",
+                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Black),
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
                                     }
+                                    Text(
+                                        "@mderramus",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
                             }
                         }
@@ -795,40 +681,17 @@ fun SettingsScreen(
         )
     }
     
-    // PIN Change Result Dialog
+    // PIN Change Result Sheet
     if (showPinResultDialog) {
-        AlertDialog(
-            onDismissRequest = { 
+        SettingsModalSheet(
+            title = if (uiState.pinChangeSuccess) "PIN Changed Successfully" else "PIN Change Failed",
+            icon = if (uiState.pinChangeSuccess) Icons.Default.CheckCircle else Icons.Default.Warning,
+            iconTint = if (uiState.pinChangeSuccess) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
+            onDismiss = {
                 showPinResultDialog = false
                 viewModel.clearPinChangeStatus()
             },
-            icon = {
-                Icon(
-                    imageVector = if (uiState.pinChangeSuccess) Icons.Default.CheckCircle else Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = if (uiState.pinChangeSuccess) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(48.dp)
-                )
-            },
-            title = {
-                Text(
-                    text = if (uiState.pinChangeSuccess) "✓ PIN Changed Successfully" else "✗ PIN Change Failed",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                    )
-                )
-            },
-            text = {
-                Text(
-                    text = if (uiState.pinChangeSuccess) {
-                        "Your PIN has been updated successfully. Please use the new PIN for future authentication."
-                    } else {
-                        uiState.error ?: "Failed to change PIN. Please try again."
-                    },
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
+            actions = {
                 Button(
                     onClick = {
                         showPinResultDialog = false
@@ -842,73 +705,35 @@ fun SettingsScreen(
                     Text("OK")
                 }
             }
-        )
+        ) {
+            Text(
+                text = if (uiState.pinChangeSuccess) {
+                    "Your PIN has been updated successfully. Please use the new PIN for future authentication."
+                } else {
+                    uiState.error ?: "Failed to change PIN. Please try again."
+                },
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
     }
 
     // Clear Data Confirmation with Strong Warning
     if (showClearDataDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearDataDialog = false },
-            icon = { 
-                Icon(
-                    Icons.Default.Warning, 
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(48.dp)
-                ) 
-            },
-            title = { 
-                Text(
-                    "⚠️ Delete Everything?",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.error
-                ) 
-            },
-            text = { 
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        "This action cannot be undone!",
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                        ),
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Text(
-                        "You are about to permanently delete:",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Column(
-                        modifier = Modifier.padding(start = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text("• All wallet addresses", style = MaterialTheme.typography.bodyMedium)
-                        Text("• Your recovery phrase", style = MaterialTheme.typography.bodyMedium)
-                        Text("• Transaction history", style = MaterialTheme.typography.bodyMedium)
-                        Text("• All app settings", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            "⚠️ Make sure you have backed up your recovery phrase before proceeding. Without it, you will lose access to your funds forever!",
-                            modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    }
+        SettingsModalSheet(
+            title = "Delete Everything?",
+            icon = Icons.Default.Warning,
+            iconTint = MaterialTheme.colorScheme.error,
+            titleColor = MaterialTheme.colorScheme.error,
+            onDismiss = { showClearDataDialog = false },
+            actions = {
+                FilledTonalButton(onClick = { showClearDataDialog = false }) {
+                    Text("Cancel")
                 }
-            },
-            confirmButton = {
+                Spacer(Modifier.width(8.dp))
                 Button(
                     onClick = {
                         viewModel.clearAllData()
                         showClearDataDialog = false
-                        // Redirect to onboarding after clearing data
                         onResetWallet()
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -919,38 +744,59 @@ fun SettingsScreen(
                     Spacer(Modifier.width(8.dp))
                     Text("Yes, Delete Everything")
                 }
-            },
-            dismissButton = {
-                FilledTonalButton(onClick = { showClearDataDialog = false }) {
-                    Text("Cancel")
-                }
-            },
-            containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(24.dp)
-        )
+            }
+        ) {
+            Text(
+                "This action cannot be undone!",
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.error
+            )
+            Text(
+                "You are about to permanently delete:",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Column(
+                modifier = Modifier.padding(start = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text("All wallet addresses", style = MaterialTheme.typography.bodyMedium)
+                Text("Your recovery phrase", style = MaterialTheme.typography.bodyMedium)
+                Text("Transaction history", style = MaterialTheme.typography.bodyMedium)
+                Text("All app settings", style = MaterialTheme.typography.bodyMedium)
+            }
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "Make sure you have backed up your recovery phrase before proceeding. Without it, you will lose access to your funds forever!",
+                    modifier = Modifier.padding(12.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        }
     }
-    
-    // Biometric Error Dialog
+
+    // Biometric Error Sheet
     if (biometricError != null) {
-        AlertDialog(
-            onDismissRequest = { biometricError = null },
-            icon = { 
-                Icon(
-                    Icons.Default.Error, 
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error
-                ) 
-            },
-            title = { Text("Biometric Error") },
-            text = { Text(biometricError ?: "") },
-            confirmButton = {
+        SettingsModalSheet(
+            title = "Biometric Error",
+            icon = Icons.Default.Error,
+            iconTint = MaterialTheme.colorScheme.error,
+            onDismiss = { biometricError = null },
+            actions = {
                 TextButton(onClick = { biometricError = null }) {
                     Text("OK")
                 }
             }
-        )
+        ) {
+            Text(biometricError ?: "")
+        }
     }
-    
+
     // Seed Phrase Dialog with Authentication
     if (showSeedPhraseDialog) {
         SeedPhraseRevealDialog(
@@ -970,16 +816,94 @@ fun SettingsScreen(
 
     // Error handling
     uiState.error?.let { error ->
-        AlertDialog(
-            onDismissRequest = { viewModel.clearError() },
-            title = { Text("Error") },
-            text = { Text(error) },
-            confirmButton = {
+        SettingsModalSheet(
+            title = "Error",
+            icon = Icons.Default.Error,
+            onDismiss = { viewModel.clearError() },
+            iconTint = MaterialTheme.colorScheme.error,
+            actions = {
                 TextButton(onClick = { viewModel.clearError() }) {
                     Text("OK")
                 }
             }
-        )
+        ) {
+            Text(error)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsModalSheet(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onDismiss: () -> Unit,
+    iconTint: Color = MaterialTheme.colorScheme.primary,
+    titleColor: Color = MaterialTheme.colorScheme.onSurface,
+    actions: @Composable RowScope.() -> Unit = {},
+    content: @Composable ColumnScope.() -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(SettingsSheetMaxHeight)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(48.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = iconTint.copy(alpha = 0.14f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = iconTint,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = titleColor,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                content = content
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 18.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+                content = actions
+            )
+        }
     }
 }
 
@@ -1113,58 +1037,40 @@ fun ModernThemeDialog(
     onDismiss: () -> Unit,
     onThemeSelected: (com.massapay.android.core.preferences.ThemeMode) -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = { 
-            Icon(
-                Icons.Outlined.Palette,
-                contentDescription = null,
-                modifier = Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.primary
-            ) 
-        },
-        title = { 
-            Text(
-                "Select Theme",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                )
-            ) 
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ThemeOption(
-                    icon = Icons.Outlined.LightMode,
-                    title = "Light Mode",
-                    subtitle = "Always use light theme",
-                    selected = currentTheme == com.massapay.android.core.preferences.ThemeMode.LIGHT,
-                    onClick = { onThemeSelected(com.massapay.android.core.preferences.ThemeMode.LIGHT) }
-                )
-                
-                ThemeOption(
-                    icon = Icons.Outlined.DarkMode,
-                    title = "Dark Mode",
-                    subtitle = "Always use dark theme",
-                    selected = currentTheme == com.massapay.android.core.preferences.ThemeMode.DARK,
-                    onClick = { onThemeSelected(com.massapay.android.core.preferences.ThemeMode.DARK) }
-                )
-                
-                ThemeOption(
-                    icon = Icons.Outlined.Brightness4,
-                    title = "System Default",
-                    subtitle = "Follow system settings",
-                    selected = currentTheme == com.massapay.android.core.preferences.ThemeMode.SYSTEM,
-                    onClick = { onThemeSelected(com.massapay.android.core.preferences.ThemeMode.SYSTEM) }
-                )
-            }
-        },
-        confirmButton = {
+    SettingsModalSheet(
+        title = "Select Theme",
+        icon = Icons.Outlined.Palette,
+        onDismiss = onDismiss,
+        actions = {
             FilledTonalButton(onClick = onDismiss) {
                 Text("Done")
             }
-        },
-        shape = RoundedCornerShape(24.dp)
-    )
+        }
+    ) {
+        ThemeOption(
+            icon = Icons.Outlined.LightMode,
+            title = "Light Mode",
+            subtitle = "Always use light theme",
+            selected = currentTheme == com.massapay.android.core.preferences.ThemeMode.LIGHT,
+            onClick = { onThemeSelected(com.massapay.android.core.preferences.ThemeMode.LIGHT) }
+        )
+
+        ThemeOption(
+            icon = Icons.Outlined.DarkMode,
+            title = "Dark Mode",
+            subtitle = "Always use dark theme",
+            selected = currentTheme == com.massapay.android.core.preferences.ThemeMode.DARK,
+            onClick = { onThemeSelected(com.massapay.android.core.preferences.ThemeMode.DARK) }
+        )
+
+        ThemeOption(
+            icon = Icons.Outlined.Brightness4,
+            title = "System Default",
+            subtitle = "Follow system settings",
+            selected = currentTheme == com.massapay.android.core.preferences.ThemeMode.SYSTEM,
+            onClick = { onThemeSelected(com.massapay.android.core.preferences.ThemeMode.SYSTEM) }
+        )
+    }
 }
 
 @Composable
@@ -1297,46 +1203,14 @@ fun ChangePinDialog(
     var confirmPin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Change PIN") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = oldPin,
-                    onValueChange = { if (it.length <= 6) oldPin = it },
-                    label = { Text("Current PIN") },
-                    singleLine = true,
-                    visualTransformation = com.massapay.android.ui.onboarding.screens.PinVisualTransformation()
-                )
-
-                OutlinedTextField(
-                    value = newPin,
-                    onValueChange = { if (it.length <= 6) newPin = it },
-                    label = { Text("New PIN") },
-                    singleLine = true,
-                    visualTransformation = com.massapay.android.ui.onboarding.screens.PinVisualTransformation()
-                )
-
-                OutlinedTextField(
-                    value = confirmPin,
-                    onValueChange = { if (it.length <= 6) confirmPin = it },
-                    label = { Text("Confirm New PIN") },
-                    singleLine = true,
-                    visualTransformation = com.massapay.android.ui.onboarding.screens.PinVisualTransformation(),
-                    isError = error != null
-                )
-
-                if (error != null) {
-                    Text(
-                        text = error ?: "",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
+    SettingsModalSheet(
+        title = "Change PIN",
+        icon = Icons.Outlined.Lock,
+        onDismiss = onDismiss,
+        actions = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
-        },
-        confirmButton = {
             TextButton(
                 onClick = {
                     when {
@@ -1354,13 +1228,188 @@ fun ChangePinDialog(
             ) {
                 Text("Change PIN")
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+        }
+    ) {
+        OutlinedTextField(
+            value = oldPin,
+            onValueChange = { if (it.length <= 6) oldPin = it },
+            label = { Text("Current PIN") },
+            singleLine = true,
+            visualTransformation = com.massapay.android.ui.onboarding.screens.PinVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            value = newPin,
+            onValueChange = { if (it.length <= 6) newPin = it },
+            label = { Text("New PIN") },
+            singleLine = true,
+            visualTransformation = com.massapay.android.ui.onboarding.screens.PinVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            value = confirmPin,
+            onValueChange = { if (it.length <= 6) confirmPin = it },
+            label = { Text("Confirm New PIN") },
+            singleLine = true,
+            visualTransformation = com.massapay.android.ui.onboarding.screens.PinVisualTransformation(),
+            isError = error != null,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        if (error != null) {
+            Text(
+                text = error ?: "",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+}
+
+@Composable
+private fun SecureRevealAuthContent(
+    title: String,
+    description: String,
+    useBiometric: Boolean,
+    biometricEnabled: Boolean,
+    pin: String,
+    error: String?,
+    onPinChange: (String) -> Unit,
+    onUsePin: () -> Unit,
+    onUseBiometric: () -> Unit
+) {
+    val primary = MaterialTheme.colorScheme.primary
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Surface(
+            modifier = Modifier.size(72.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = primary.copy(alpha = 0.12f)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = if (useBiometric) Icons.Default.Fingerprint else Icons.Outlined.Shield,
+                    contentDescription = null,
+                    modifier = Modifier.size(36.dp),
+                    tint = primary
+                )
             }
         }
-    )
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                description,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
+        ) {
+            Row(
+                modifier = Modifier.padding(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(38.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Sensitive wallet data",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Only reveal this in a private place. MassaConnect will never ask you to share it.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        if (useBiometric) {
+            Button(
+                onClick = onUseBiometric,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(58.dp),
+                shape = RoundedCornerShape(29.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isSystemInDarkTheme()) Color(0xFF2A2A2A) else Color.Black,
+                    contentColor = Color.White
+                )
+            ) {
+                Icon(Icons.Default.Fingerprint, contentDescription = null)
+                Spacer(Modifier.width(10.dp))
+                Text("Authorize with Biometric", fontWeight = FontWeight.Bold)
+            }
+            TextButton(onClick = onUsePin, modifier = Modifier.fillMaxWidth()) {
+                Text("Use PIN instead")
+            }
+        } else {
+            Text(
+                "Enter your 6-digit PIN",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = pin,
+                onValueChange = onPinChange,
+                label = { Text("PIN") },
+                singleLine = true,
+                visualTransformation = com.massapay.android.ui.onboarding.screens.PinVisualTransformation(),
+                isError = error != null,
+                keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.onSurface,
+                    focusedLabelColor = MaterialTheme.colorScheme.onSurface,
+                    cursorColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
+            if (biometricEnabled) {
+                TextButton(onClick = onUseBiometric, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Use Biometric")
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -1373,17 +1422,17 @@ private fun SeedPhraseRevealDialog(
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var useBiometric by remember { mutableStateOf(false) }
-    
+    var showCopied by remember { mutableStateOf(false) }
+
     val context = LocalContext.current
     val activity = context as? FragmentActivity
     val uiState by viewModel.uiState.collectAsState()
-    
-    // Use seed phrase or S1 key from uiState instead of parameter
-    val currentSeedPhrase = uiState.seedPhrase ?: ""
+    val clipboardManager = LocalClipboardManager.current
+    val currentSeedPhrase = uiState.seedPhrase ?: seedPhrase
     val currentS1Key = uiState.s1PrivateKey ?: ""
     val isS1Import = uiState.isS1Import
-    
-    // Setup biometric prompt for seed phrase reveal
+    val contentToCopy = if (isS1Import) currentS1Key else currentSeedPhrase
+
     val seedBiometricPrompt = remember {
         activity?.let {
             BiometricPrompt(
@@ -1416,277 +1465,51 @@ private fun SeedPhraseRevealDialog(
             .setNegativeButtonText("Use PIN")
             .build()
     }
-    
-    // Show biometric prompt when dialog opens if biometric is enabled
+
     LaunchedEffect(Unit) {
         if (uiState.biometricEnabled) {
             val biometricManager = AndroidBiometricManager.from(context)
             val canAuthenticate = biometricManager.canAuthenticate(
-                AndroidBiometricManager.Authenticators.BIOMETRIC_STRONG or 
-                AndroidBiometricManager.Authenticators.BIOMETRIC_WEAK
+                AndroidBiometricManager.Authenticators.BIOMETRIC_STRONG or
+                    AndroidBiometricManager.Authenticators.BIOMETRIC_WEAK
             )
-            
             if (canAuthenticate == AndroidBiometricManager.BIOMETRIC_SUCCESS) {
                 useBiometric = true
                 seedBiometricPrompt?.authenticate(seedPromptInfo)
             }
         }
     }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = {
-            Icon(
-                imageVector = Icons.Outlined.Shield,
-                contentDescription = null,
-                tint = if (isAuthenticated) androidx.compose.ui.graphics.Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(48.dp)
-            )
+
+    SettingsModalSheet(
+        title = if (isAuthenticated) {
+            if (isS1Import) "Private Key (S1)" else "Recovery Phrase"
+        } else {
+            "Verify Identity"
         },
-        title = {
-            Text(
-                text = if (isAuthenticated) {
-                    if (isS1Import) "Private Key (S1)" else "Recovery Phrase"
-                } else {
-                    "Verify Identity"
-                },
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                )
-            )
-        },
-        text = {
-            if (!isAuthenticated) {
-                // Authentication screen
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    if (useBiometric) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Fingerprint,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(64.dp)
-                            )
-                            Text(
-                                "Touch the fingerprint sensor",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            TextButton(onClick = { useBiometric = false }) {
-                                Text("Use PIN instead")
-                            }
-                        }
-                    } else {
-                        Text(
-                            "Enter your PIN to view your recovery phrase",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        
-                        OutlinedTextField(
-                            value = pin,
-                            onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) pin = it },
-                            label = { Text("PIN") },
-                            singleLine = true,
-                            visualTransformation = com.massapay.android.ui.onboarding.screens.PinVisualTransformation(),
-                            isError = error != null,
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        
-                        // Option to use biometric if available and enabled
-                        if (uiState.biometricEnabled) {
-                            TextButton(
-                                onClick = { 
-                                    useBiometric = true
-                                    seedBiometricPrompt?.authenticate(seedPromptInfo)
-                                }
-                            ) {
-                                Icon(Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("Use Biometric")
-                            }
-                        }
-                    }
-                    
-                    if (error != null) {
-                        Text(
-                            text = error ?: "",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            } else {
-                // Show seed phrase
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Warning,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    "Warning",
-                                    style = MaterialTheme.typography.titleSmall.copy(
-                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                    ),
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
-                            Text(
-                                if (isS1Import) {
-                                    "Never share your private key with anyone. Anyone with this key can access your wallet."
-                                } else {
-                                    "Never share your recovery phrase with anyone. Anyone with this phrase can access your wallet."
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        }
-                    }
-                    
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (isS1Import && currentS1Key.isNotEmpty()) {
-                                // Display S1 private key
-                                Text(
-                                    "S1 Private Key",
-                                    style = MaterialTheme.typography.titleSmall.copy(
-                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                    ),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Card(
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surface
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        currentS1Key,
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                                        ),
-                                        modifier = Modifier.padding(16.dp)
-                                    )
-                                }
-                            } else if (currentSeedPhrase.isNotEmpty()) {
-                                // Display mnemonic seed phrase
-                                val words = currentSeedPhrase.trim().split(Regex("\\s+"))
-                                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-                                    columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.height(((words.size + 1) / 2 * 44).dp)
-                                ) {
-                                    items(words.size) { index ->
-                                        Card(
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = MaterialTheme.colorScheme.surface
-                                            ),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(8.dp),
-                                                horizontalArrangement = Arrangement.Start,
-                                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    "${index + 1}.",
-                                                    style = MaterialTheme.typography.bodySmall.copy(
-                                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                                    ),
-                                                    modifier = Modifier.padding(end = 4.dp)
-                                                )
-                                                Text(
-                                                    words[index],
-                                                    style = MaterialTheme.typography.bodySmall.copy(
-                                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                                                    )
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                Text(
-                                    "No recovery information found",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.padding(16.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
+        icon = Icons.Outlined.Shield,
+        iconTint = if (isAuthenticated) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
+        onDismiss = onDismiss,
+        actions = {
+            TextButton(onClick = onDismiss) { Text("Close") }
             if (!isAuthenticated && !useBiometric) {
+                Spacer(Modifier.width(8.dp))
                 Button(
                     onClick = {
-                        if (pin.length == 6) {
-                            if (viewModel.verifyPin(pin)) {
-                                isAuthenticated = true
-                                error = null
-                                viewModel.loadSeedPhrase()
-                            } else {
-                                error = "Incorrect PIN"
-                            }
+                        if (pin.length == 6 && viewModel.verifyPin(pin)) {
+                            isAuthenticated = true
+                            error = null
+                            viewModel.loadSeedPhrase()
                         } else {
-                            error = "PIN must be 6 digits"
+                            error = if (pin.length == 6) "Incorrect PIN" else "PIN must be 6 digits"
                         }
                     },
                     enabled = pin.length == 6
-                ) {
-                    Text("Verify")
-                }
+                ) { Text("Verify") }
             } else if (isAuthenticated) {
-                var showCopied by remember { mutableStateOf(false) }
-                val context = androidx.compose.ui.platform.LocalContext.current
-                val contentToCopy = if (isS1Import) currentS1Key else currentSeedPhrase
-                
+                Spacer(Modifier.width(8.dp))
                 Button(
                     onClick = {
-                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        val label = if (isS1Import) "Private Key" else "Recovery Phrase"
-                        val clip = android.content.ClipData.newPlainText(label, contentToCopy)
-                        clipboard.setPrimaryClip(clip)
+                        clipboardManager.setText(AnnotatedString(contentToCopy))
                         showCopied = true
                     },
                     enabled = contentToCopy.isNotEmpty()
@@ -1697,16 +1520,181 @@ private fun SeedPhraseRevealDialog(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text(if (showCopied) "Copied!" else "Copy")
+                    Text(if (showCopied) "Copied" else "Copy")
                 }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
+        }
+    ) {
+        if (!isAuthenticated) {
+            SecureRevealAuthContent(
+                title = if (isS1Import) "Protecting your private key" else "Protecting your recovery phrase",
+                description = if (isS1Import) {
+                    "Verify your identity before exposing the S1 key for this account."
+                } else {
+                    "Verify your identity before exposing the seed phrase for this account."
+                },
+                useBiometric = useBiometric,
+                biometricEnabled = uiState.biometricEnabled,
+                pin = pin,
+                error = error,
+                onPinChange = { next ->
+                    if (next.length <= 6 && next.all { c -> c.isDigit() }) pin = next
+                },
+                onUsePin = { useBiometric = false },
+                onUseBiometric = {
+                    useBiometric = true
+                    seedBiometricPrompt?.authenticate(seedPromptInfo)
+                }
+            )
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        } else {
+            RevealedSecretContent(
+                isS1Import = isS1Import,
+                content = contentToCopy
+            )
+        }
+    }
+}
+
+@Composable
+private fun RevealedSecretContent(
+    isS1Import: Boolean,
+    content: String
+) {
+    val title = if (isS1Import) "Private key revealed" else "Recovery phrase revealed"
+    val description = if (isS1Import) {
+        "Anyone with this S1 key can control this wallet."
+    } else {
+        "Write these words down in order and store them offline."
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.34f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.18f))
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(42.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.13f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
-    )
+
+        if (content.isBlank()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
+            ) {
+                Text(
+                    "No recovery information found",
+                    modifier = Modifier.padding(18.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else if (isS1Import) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
+            ) {
+                Text(
+                    text = content,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    ),
+                    modifier = Modifier.padding(18.dp),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        } else {
+            val words = content.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+            RecoveryWordGrid(words = words)
+        }
+    }
+}
+
+@Composable
+private fun RecoveryWordGrid(words: List<String>) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            "Recovery phrase",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            words.forEachIndexed { index, word ->
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                    border = BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "${index + 1}",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.46f)
+                        )
+                        Text(
+                            word,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -1718,16 +1706,16 @@ private fun PrivateKeyRevealDialog(
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var useBiometric by remember { mutableStateOf(false) }
-    
+    var showCopiedS1 by remember { mutableStateOf(false) }
+    var showCopiedP1 by remember { mutableStateOf(false) }
+
     val context = LocalContext.current
     val activity = context as? FragmentActivity
     val uiState by viewModel.uiState.collectAsState()
     val clipboardManager = LocalClipboardManager.current
-    
-    // Use S1 and P1 keys from uiState
     val privateKeyS1 = uiState.privateKeyS1 ?: ""
     val publicKeyP1 = uiState.publicKeyP1 ?: ""
-    
+
     val privKeyBiometricPrompt = remember {
         activity?.let {
             BiometricPrompt(
@@ -1739,10 +1727,12 @@ private fun PrivateKeyRevealDialog(
                         error = null
                         viewModel.loadPrivateKey()
                     }
+
                     override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                         error = "Biometric authentication failed: $errString"
                         useBiometric = false
                     }
+
                     override fun onAuthenticationFailed() {
                         error = "Biometric authentication failed"
                     }
@@ -1758,253 +1748,130 @@ private fun PrivateKeyRevealDialog(
             .setNegativeButtonText("Use PIN")
             .build()
     }
-    
+
     LaunchedEffect(Unit) {
         if (uiState.biometricEnabled) {
             val biometricManager = AndroidBiometricManager.from(context)
             val canAuthenticate = biometricManager.canAuthenticate(
-                AndroidBiometricManager.Authenticators.BIOMETRIC_STRONG or 
-                AndroidBiometricManager.Authenticators.BIOMETRIC_WEAK
+                AndroidBiometricManager.Authenticators.BIOMETRIC_STRONG or
+                    AndroidBiometricManager.Authenticators.BIOMETRIC_WEAK
             )
-            
             if (canAuthenticate == AndroidBiometricManager.BIOMETRIC_SUCCESS) {
                 useBiometric = true
                 privKeyBiometricPrompt?.authenticate(privKeyPromptInfo)
             }
         }
     }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = {
-            Icon(
-                imageVector = Icons.Outlined.Key,
-                contentDescription = null,
-                tint = if (isAuthenticated) androidx.compose.ui.graphics.Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(48.dp)
-            )
-        },
-        title = {
-            Text(
-                text = if (isAuthenticated) "Export Keys" else "Verify Identity",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                )
-            )
-        },
-        text = {
-            if (!isAuthenticated) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    if (useBiometric) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Fingerprint,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(64.dp)
-                            )
-                            Text("Touch the fingerprint sensor")
-                            TextButton(onClick = { useBiometric = false }) {
-                                Text("Use PIN instead")
-                            }
-                        }
-                    } else {
-                        Text("Enter your PIN to view your private key")
-                        OutlinedTextField(
-                            value = pin,
-                            onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) pin = it },
-                            label = { Text("PIN") },
-                            singleLine = true,
-                            visualTransformation = com.massapay.android.ui.onboarding.screens.PinVisualTransformation(),
-                            isError = error != null,
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        if (uiState.biometricEnabled) {
-                            TextButton(onClick = { 
-                                useBiometric = true
-                                privKeyBiometricPrompt?.authenticate(privKeyPromptInfo)
-                            }) {
-                                Icon(Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("Use Biometric")
-                            }
-                        }
-                    }
-                    if (error != null) {
-                        Text(error ?: "", color = MaterialTheme.colorScheme.error)
-                    }
-                }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
-                                Text("Warning", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
-                            }
-                            Text("Never share your private key (S1). Anyone with this key can control your wallet. The public key (P1) is safe to share for verification.")
-                        }
-                    }
-                    
-                    // Private Key S1
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.1f)
-                        ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    "🔐 Private Key (S1)", 
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                    ), 
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                                Text(
-                                    "DO NOT SHARE", 
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                text = privateKeyS1,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                    
-                    // Public Key P1
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                        ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    "🔓 Public Key (P1)", 
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                    ), 
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    "SAFE TO SHARE", 
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                text = publicKeyP1,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            if (isAuthenticated) {
-                var showCopiedS1 by remember { mutableStateOf(false) }
-                var showCopiedP1 by remember { mutableStateOf(false) }
-                
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Copy S1 Private Key
-                    Button(
-                        onClick = {
-                            clipboardManager.setText(AnnotatedString(privateKeyS1))
-                            showCopiedS1 = true
-                            showCopiedP1 = false
-                        },
-                        enabled = privateKeyS1.isNotEmpty(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Icon(
-                            if (showCopiedS1) Icons.Default.Check else Icons.Default.ContentCopy, 
-                            contentDescription = null, 
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(if (showCopiedS1) "S1 ✓" else "S1")
-                    }
-                    
-                    // Copy P1 Public Key
-                    OutlinedButton(
-                        onClick = {
-                            clipboardManager.setText(AnnotatedString(publicKeyP1))
-                            showCopiedP1 = true
-                            showCopiedS1 = false
-                        },
-                        enabled = publicKeyP1.isNotEmpty()
-                    ) {
-                        Icon(
-                            if (showCopiedP1) Icons.Default.Check else Icons.Default.ContentCopy, 
-                            contentDescription = null, 
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(if (showCopiedP1) "P1 ✓" else "P1")
-                    }
-                }
-            } else if (!useBiometric) {
+
+    SettingsModalSheet(
+        title = if (isAuthenticated) "Export Keys" else "Verify Identity",
+        icon = Icons.Outlined.Key,
+        iconTint = if (isAuthenticated) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
+        onDismiss = onDismiss,
+        actions = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+            if (!isAuthenticated && !useBiometric) {
+                Spacer(Modifier.width(8.dp))
                 Button(
                     onClick = {
-                        if (viewModel.verifyPin(pin)) {
+                        if (pin.length == 6 && viewModel.verifyPin(pin)) {
                             isAuthenticated = true
                             error = null
                             viewModel.loadPrivateKey()
                         } else {
-                            error = "Incorrect PIN"
+                            error = if (pin.length == 6) "Incorrect PIN" else "PIN must be 6 digits"
                         }
                     },
                     enabled = pin.length == 6
+                ) { Text("Verify") }
+            } else if (isAuthenticated) {
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(privateKeyS1))
+                        showCopiedS1 = true
+                        showCopiedP1 = false
+                    },
+                    enabled = privateKeyS1.isNotEmpty(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Verify")
+                    Icon(if (showCopiedS1) Icons.Default.Check else Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(if (showCopiedS1) "S1 Copied" else "S1")
+                }
+                Spacer(Modifier.width(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(publicKeyP1))
+                        showCopiedP1 = true
+                        showCopiedS1 = false
+                    },
+                    enabled = publicKeyP1.isNotEmpty()
+                ) {
+                    Icon(if (showCopiedP1) Icons.Default.Check else Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(if (showCopiedP1) "P1 Copied" else "P1")
                 }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
-            }
         }
-    )
+    ) {
+        if (!isAuthenticated) {
+            SecureRevealAuthContent(
+                title = "Protecting your keys",
+                description = "Verify your identity before exposing export keys for this wallet.",
+                useBiometric = useBiometric,
+                biometricEnabled = uiState.biometricEnabled,
+                pin = pin,
+                error = error,
+                onPinChange = { next ->
+                    if (next.length <= 6 && next.all { c -> c.isDigit() }) pin = next
+                },
+                onUsePin = { useBiometric = false },
+                onUseBiometric = {
+                    useBiometric = true
+                    privKeyBiometricPrompt?.authenticate(privKeyPromptInfo)
+                }
+            )
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        } else {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Text("Warning", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                    }
+                    Text("Never share your private key (S1). Anyone with this key can control your wallet. The public key (P1) is safe to share for verification.")
+                }
+            }
+            KeyValueCard("Private Key (S1)", privateKeyS1, MaterialTheme.colorScheme.error)
+            KeyValueCard("Public Key (P1)", publicKeyP1, MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+private fun KeyValueCard(
+    title: String,
+    value: String,
+    accentColor: Color
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = accentColor.copy(alpha = 0.08f)),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.3f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = accentColor)
+            Text(
+                text = value.ifEmpty { "Not available" },
+                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
 }
 // About Dialog Components
 @Composable

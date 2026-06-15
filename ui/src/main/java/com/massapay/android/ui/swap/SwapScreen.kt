@@ -2,12 +2,15 @@ package com.massapay.android.ui.swap
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -133,6 +136,9 @@ fun SwapScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .imePadding()
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -375,7 +381,7 @@ fun SwapScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Error message
             if (uiState.error != null) {
@@ -811,6 +817,7 @@ private fun SwapTokenCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TokenSelectionDialog(
     tokens: List<SwapToken>,
@@ -822,75 +829,79 @@ private fun TokenSelectionDialog(
     textPrimary: Color,
     accentColor: Color
 ) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = cardBackground)
+                .fillMaxHeight(0.72f)
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+            Text(
+                "Select Token",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = textPrimary
+            )
+
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    "Select Token",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = textPrimary
-                )
-
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(tokens.filter { it != excludeToken }) { token ->
-                        val isSelected = token == selectedToken
-                        Surface(
-                            onClick = { onTokenSelected(token) },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) accentColor.copy(alpha = 0.15f) 
-                                   else MaterialTheme.colorScheme.background
+                items(tokens.filter { it != excludeToken }) { token ->
+                    val isSelected = token == selectedToken
+                    Surface(
+                        onClick = { onTokenSelected(token) },
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (isSelected) accentColor.copy(alpha = 0.15f)
+                               else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                // Token icon
-                                TokenIcon(token = token, size = 40.dp, fontSize = 18.sp)
+                            TokenIcon(token = token, size = 40.dp, fontSize = 18.sp)
 
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        token.symbol,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = textPrimary
-                                    )
-                                    Text(
-                                        token.name,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = textPrimary.copy(alpha = 0.6f)
-                                    )
-                                }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    token.symbol,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = textPrimary
+                                )
+                                Text(
+                                    token.name,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = textPrimary.copy(alpha = 0.6f)
+                                )
+                            }
 
-                                if (isSelected) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = accentColor
-                                    )
-                                }
+                            if (isSelected) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = accentColor
+                                )
                             }
                         }
                     }
                 }
             }
+            Spacer(Modifier.height(16.dp))
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwapSuccessDialog(
     fromAmount: String,
@@ -941,17 +952,28 @@ private fun SwapSuccessDialog(
         visible = true
     }
     
-    Dialog(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .fillMaxHeight(0.72f)
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
                     this.alpha = alpha
                 },
-            shape = RoundedCornerShape(24.dp)
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -1021,48 +1043,46 @@ private fun SwapSuccessDialog(
 
                 Text(
                     "Swap Successful!",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
 
+                Text(
+                    "Your transaction has been submitted to Massa.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+
                 // Animated swap amount with arrows
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(22.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
                 ) {
-                    Text(
-                        "$fromAmount ${fromToken.symbol}",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
-                    
-                    // Animated arrow
-                    val arrowTransition = rememberInfiniteTransition(label = "arrowPulse")
-                    val arrowOffset by arrowTransition.animateFloat(
-                        initialValue = -2f,
-                        targetValue = 2f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(500, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "arrowOffset"
-                    )
-                    
-                    Icon(
-                        Icons.Default.ArrowForward,
-                        contentDescription = null,
-                        tint = accentColor,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .graphicsLayer { translationX = arrowOffset }
-                    )
-                    
-                    Text(
-                        "$toAmount ${toToken.symbol}",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = accentColor
-                    )
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            "$fromAmount ${fromToken.symbol}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                        Icon(
+                            Icons.Default.ArrowForward,
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            "$toAmount ${toToken.symbol}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = accentColor
+                        )
+                    }
                 }
 
                 if (txHash != null) {
@@ -1086,9 +1106,14 @@ private fun SwapSuccessDialog(
 
                 Button(
                     onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = accentColor)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape = RoundedCornerShape(27.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSystemInDarkTheme()) Color(0xFF2A2A2A) else Color.Black,
+                        contentColor = Color.White
+                    )
                 ) {
                     Text("Done", fontWeight = FontWeight.Bold)
                 }
@@ -1097,6 +1122,7 @@ private fun SwapSuccessDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwapConfirmationDialog(
     data: SwapConfirmationData,
@@ -1107,138 +1133,153 @@ private fun SwapConfirmationDialog(
     textSecondary: Color,
     accentColor: Color
 ) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = cardBackground)
+                .fillMaxHeight(0.9f)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    modifier = Modifier.size(48.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = accentColor.copy(alpha = 0.14f)
                 ) {
-                    Text(
-                        "Confirm Swap",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = textPrimary
-                    )
-                    IconButton(onClick = onDismiss) {
+                    Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = textSecondary
+                            Icons.Default.SwapHoriz,
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size(26.dp)
                         )
                     }
                 }
-                
-                Divider(color = textSecondary.copy(alpha = 0.2f))
-                
-                // Swap Preview
-                Column(
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Confirm Swap",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = textPrimary
+                    )
+                    Text(
+                        "Review pricing before signing.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = textSecondary
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
                 ) {
-                    // From Amount
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        TokenIcon(token = data.fromToken, size = 40.dp)
-                        Column {
-                            Text(
-                                "${data.fromAmount} ${data.fromToken.symbol}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = textPrimary
-                            )
-                            Text(
-                                "You pay",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = textSecondary
-                            )
+                        SwapPreviewRow(
+                            label = "You pay",
+                            amount = data.fromAmount,
+                            token = data.fromToken,
+                            textPrimary = textPrimary,
+                            textSecondary = textSecondary
+                        )
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Divider(color = textSecondary.copy(alpha = 0.14f))
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isSystemInDarkTheme()) Color(0xFF2A2A2A) else Color.Black
+                            ) {
+                                Icon(
+                                    Icons.Default.ArrowDownward,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.padding(8.dp).size(18.dp)
+                                )
+                            }
                         }
-                    }
-                    
-                    Icon(
-                        Icons.Default.ArrowDownward,
-                        contentDescription = null,
-                        tint = accentColor,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    
-                    // To Amount
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TokenIcon(token = data.toToken, size = 40.dp)
-                        Column {
-                            Text(
-                                "${data.toAmount} ${data.toToken.symbol}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = textPrimary
-                            )
-                            Text(
-                                "You receive",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = textSecondary
-                            )
-                        }
+                        SwapPreviewRow(
+                            label = "You receive",
+                            amount = data.toAmount,
+                            token = data.toToken,
+                            textPrimary = textPrimary,
+                            textSecondary = textSecondary
+                        )
                     }
                 }
-                
-                Divider(color = textSecondary.copy(alpha = 0.2f))
-                
-                // Swap Details
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(22.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.44f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
                 ) {
-                    SwapDetailRow(
-                        label = "Rate",
-                        value = "1 ${data.fromToken.symbol} = ${data.exchangeRate} ${data.toToken.symbol}",
-                        textPrimary = textPrimary,
-                        textSecondary = textSecondary
-                    )
-                    SwapDetailRow(
-                        label = "Minimum received",
-                        value = "${data.minReceived} ${data.toToken.symbol}",
-                        textPrimary = textPrimary,
-                        textSecondary = textSecondary
-                    )
-                    SwapDetailRow(
-                        label = "Price impact",
-                        value = "${data.priceImpact}%",
-                        textPrimary = if (data.priceImpact < 1f) Color(0xFF4CAF50) else Color(0xFFFF5722),
-                        textSecondary = textSecondary
-                    )
-                    SwapDetailRow(
-                        label = "Slippage tolerance",
-                        value = "${data.slippage}%",
-                        textPrimary = textPrimary,
-                        textSecondary = textSecondary
-                    )
-                    SwapDetailRow(
-                        label = "Network fee",
-                        value = data.estimatedFee,
-                        textPrimary = textPrimary,
-                        textSecondary = textSecondary
-                    )
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            "Trade details",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = textPrimary
+                        )
+                        Divider(color = textSecondary.copy(alpha = 0.14f))
+                        SwapDetailRow(
+                            label = "Rate",
+                            value = "1 ${data.fromToken.symbol} = ${data.exchangeRate} ${data.toToken.symbol}",
+                            textPrimary = textPrimary,
+                            textSecondary = textSecondary
+                        )
+                        SwapDetailRow(
+                            label = "Minimum received",
+                            value = "${data.minReceived} ${data.toToken.symbol}",
+                            textPrimary = textPrimary,
+                            textSecondary = textSecondary
+                        )
+                        SwapDetailRow(
+                            label = "Price impact",
+                            value = "${data.priceImpact}%",
+                            textPrimary = if (data.priceImpact < 1f) Color(0xFF4CAF50) else Color(0xFFFF5722),
+                            textSecondary = textSecondary
+                        )
+                        SwapDetailRow(
+                            label = "Slippage tolerance",
+                            value = "${data.slippage}%",
+                            textPrimary = textPrimary,
+                            textSecondary = textSecondary
+                        )
+                        SwapDetailRow(
+                            label = "Network fee",
+                            value = data.estimatedFee,
+                            textPrimary = textPrimary,
+                            textSecondary = textSecondary
+                        )
+                    }
                 }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // Warning if high price impact
+
                 if (data.priceImpact >= 3f) {
                     Card(
                         colors = CardDefaults.cardColors(
@@ -1258,39 +1299,80 @@ private fun SwapConfirmationDialog(
                                 modifier = Modifier.size(20.dp)
                             )
                             Text(
-                                "High price impact! You may receive significantly less than expected.",
+                                "High price impact. You may receive significantly less than expected.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFFFF5722)
                             )
                         }
                     }
                 }
-                
-                // Action Buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 18.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = textPrimary)
                 ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = textPrimary
-                        )
-                    ) {
-                        Text("Cancel")
-                    }
-                    Button(
-                        onClick = onConfirm,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = accentColor)
-                    ) {
-                        Text("Confirm Swap", fontWeight = FontWeight.Bold)
-                    }
+                    Text("Cancel", fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = onConfirm,
+                    shape = RoundedCornerShape(26.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSystemInDarkTheme()) Color(0xFF2A2A2A) else Color.Black,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("Confirm Swap", fontWeight = FontWeight.Bold)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SwapPreviewRow(
+    label: String,
+    amount: String,
+    token: SwapToken,
+    textPrimary: Color,
+    textSecondary: Color
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TokenIcon(token = token, size = 44.dp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = textSecondary
+            )
+            Text(
+                "$amount ${token.symbol}",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = textPrimary,
+                maxLines = 1
+            )
+        }
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)
+        ) {
+            Text(
+                token.symbol,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = textPrimary
+            )
         }
     }
 }

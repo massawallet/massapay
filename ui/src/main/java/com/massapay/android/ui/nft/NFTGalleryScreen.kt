@@ -161,56 +161,69 @@ fun NFTGalleryScreen(
     
         // Import Collection Dialog
         if (showImportDialog) {
-            AlertDialog(
-                onDismissRequest = { 
+            ModalBottomSheet(
+                onDismissRequest = {
                     showImportDialog = false
                     contractAddressInput = ""
                     collectionNameInput = ""
                 },
-                title = { 
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = if (isDarkTheme) Color(0xFF1A1A2E) else Color.White,
+                tonalElevation = 0.dp,
+                dragHandle = { BottomSheetDefaults.DragHandle() }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.82f)
+                        .navigationBarsPadding()
+                        .imePadding()
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                     Text(
                         "Import NFT Collection",
-                        fontWeight = FontWeight.Bold
-                    ) 
-                },
-                text = {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDarkTheme) Color.White else Color.Black
+                    )
+
+                    Text(
+                        "Enter the smart contract address of the NFT collection you want to import.",
+                        fontSize = 14.sp,
+                        color = if (isDarkTheme) Color.White.copy(alpha = 0.7f) else Color.Black.copy(alpha = 0.7f)
+                    )
+
+                    OutlinedTextField(
+                        value = contractAddressInput,
+                        onValueChange = { contractAddressInput = it },
+                        label = { Text("Contract Address (AS...)") },
+                        placeholder = { Text("AS1...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = collectionNameInput,
+                        onValueChange = { collectionNameInput = it },
+                        label = { Text("Collection Name (optional)") },
+                        placeholder = { Text("My NFT Collection") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+
+                    if (uiState.error != null && uiState.isAddingCollection.not()) {
                         Text(
-                            "Enter the smart contract address of the NFT collection you want to import.",
-                            fontSize = 14.sp,
-                            color = if (isDarkTheme) Color.White.copy(alpha = 0.7f) else Color.Black.copy(alpha = 0.7f)
+                            uiState.error ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp
                         )
-                        
-                        OutlinedTextField(
-                            value = contractAddressInput,
-                            onValueChange = { contractAddressInput = it },
-                            label = { Text("Contract Address (AS...)") },
-                            placeholder = { Text("AS1...") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        
-                        OutlinedTextField(
-                            value = collectionNameInput,
-                            onValueChange = { collectionNameInput = it },
-                            label = { Text("Collection Name (optional)") },
-                            placeholder = { Text("My NFT Collection") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        
-                        if (uiState.error != null && uiState.isAddingCollection.not()) {
-                            Text(
-                                uiState.error ?: "",
-                                color = Color.Red,
-                                fontSize = 12.sp
-                            )
-                        }
                     }
-                },
-                confirmButton = {
+
+                    Spacer(modifier = Modifier.weight(1f))
+
                     Button(
                         onClick = {
                             if (contractAddressInput.isNotBlank()) {
@@ -223,7 +236,15 @@ fun NFTGalleryScreen(
                                 collectionNameInput = ""
                             }
                         },
-                        enabled = contractAddressInput.startsWith("AS") && !uiState.isAddingCollection
+                        enabled = contractAddressInput.startsWith("AS") && !uiState.isAddingCollection,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isDarkTheme) Color.White else Color.Black,
+                            contentColor = if (isDarkTheme) Color.Black else Color.White
+                        )
                     ) {
                         if (uiState.isAddingCollection) {
                             CircularProgressIndicator(
@@ -235,20 +256,21 @@ fun NFTGalleryScreen(
                             Text("Import")
                         }
                     }
-                },
-                dismissButton = {
+
                     TextButton(
-                        onClick = { 
+                        onClick = {
                             showImportDialog = false
                             contractAddressInput = ""
                             collectionNameInput = ""
-                        }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
                     ) {
                         Text("Cancel")
                     }
-                },
-                containerColor = if (isDarkTheme) Color(0xFF1A1A2E) else Color.White
-            )
+                }
+            }
         }
     
         val context = LocalContext.current

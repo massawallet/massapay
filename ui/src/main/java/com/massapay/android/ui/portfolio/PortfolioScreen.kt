@@ -143,8 +143,8 @@ fun PortfolioScreen(
                             .background(
                                 brush = Brush.linearGradient(
                                     colors = listOf(
-                                        Color(0xFF1a1a2e),
-                                        Color(0xFF16213e)
+                                        if (isDarkTheme) Color(0xFF2A2A2A) else Color.Black,
+                                        if (isDarkTheme) Color(0xFF141414) else Color(0xFF2A2A2A)
                                     )
                                 ),
                                 shape = RoundedCornerShape(24.dp)
@@ -202,17 +202,14 @@ fun PortfolioScreen(
                             }
                             
                             // Assets count badge
-                            Surface(
-                                shape = RoundedCornerShape(20.dp),
-                                color = Color.White.copy(alpha = 0.15f)
-                            ) {
-                                Text(
-                                    "${uiState.tokens.size} Assets",
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                    style = MaterialTheme.typography.labelLarge.copy(
-                                        fontWeight = FontWeight.Bold
-                                    ),
-                                    color = Color.White
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                PortfolioHeroChip(
+                                    icon = Icons.Outlined.Token,
+                                    text = "${uiState.tokens.size} Assets"
+                                )
+                                PortfolioHeroChip(
+                                    icon = Icons.Outlined.Verified,
+                                    text = "Massa Network"
                                 )
                             }
                         }
@@ -220,34 +217,66 @@ fun PortfolioScreen(
                 }
             }
 
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    PortfolioQuickMetric(
+                        icon = Icons.Outlined.PieChart,
+                        label = "Assets",
+                        value = "${uiState.tokens.size}",
+                        modifier = Modifier.weight(1f),
+                        containerColor = cardColor
+                    )
+                    PortfolioQuickMetric(
+                        icon = Icons.Outlined.AccountBalanceWallet,
+                        label = "Total value",
+                        value = "$${String.format("%,.2f", uiState.totalUsdValue.toDouble())}",
+                        modifier = Modifier.weight(1f),
+                        containerColor = cardColor
+                    )
+                }
+            }
+
             // Assets Section Header
             item {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.padding(vertical = 8.dp)
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(22.dp),
+                    color = cardColor.copy(alpha = 0.58f)
                 ) {
-                    Surface(
-                        modifier = Modifier.size(44.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        color = iconContainerColor
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            Icon(
-                                Icons.Outlined.Token,
-                                contentDescription = null,
-                                modifier = Modifier.size(22.dp),
-                                tint = iconTintColor
+                        Surface(
+                            modifier = Modifier.size(42.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            color = iconContainerColor
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                Icon(
+                                    Icons.Outlined.Token,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp),
+                                    tint = iconTintColor
+                                )
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Your Assets",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = textPrimary
+                            )
+                            Text(
+                                "Balances detected for this account",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = textSecondary
                             )
                         }
                     }
-                    Text(
-                        "Your Assets",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.SemiBold
-                        ),
-                        color = textPrimary
-                    )
                 }
             }
 
@@ -389,9 +418,7 @@ fun PortfolioScreen(
                         cardColor = cardColor,
                         textPrimary = textPrimary,
                         textSecondary = textSecondary,
-                        isDarkTheme = isDarkTheme,
-                        iconContainerColor = iconContainerColor,
-                        iconTintColor = iconTintColor
+                        isDarkTheme = isDarkTheme
                     )
                 }
             }
@@ -405,14 +432,85 @@ fun PortfolioScreen(
 }
 
 @Composable
+private fun PortfolioHeroChip(
+    icon: ImageVector,
+    text: String
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White.copy(alpha = 0.15f)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+            Text(
+                text,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                color = Color.White
+            )
+        }
+    }
+}
+
+@Composable
+private fun PortfolioQuickMetric(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier,
+    containerColor: Color
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(22.dp),
+        color = containerColor.copy(alpha = 0.58f)
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(38.dp),
+                shape = RoundedCornerShape(13.dp),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    value,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun TokenItem(
     token: PortfolioToken,
     cardColor: Color,
     textPrimary: Color,
     textSecondary: Color,
-    isDarkTheme: Boolean,
-    iconContainerColor: Color,
-    iconTintColor: Color
+    isDarkTheme: Boolean
 ) {
     // Special styling for MC (MassaConnect) token - our official token
     val isMCToken = token.symbol == "MC"
@@ -442,9 +540,9 @@ private fun TokenItem(
         colors = CardDefaults.cardColors(
             containerColor = if (isMCToken) {
                 if (isDarkTheme) Color(0xFF1A1A2E) else cardColor
-            } else cardColor
+            } else cardColor.copy(alpha = 0.72f)
         ),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         elevation = CardDefaults.cardElevation(
             defaultElevation = if (isMCToken) 8.dp else if (isDarkTheme) 0.dp else 4.dp
         )
@@ -515,17 +613,17 @@ private fun TokenItem(
                     // Official badge for MC token
                     if (isMCToken) {
                         Surface(
-                            shape = RoundedCornerShape(4.dp),
+                            shape = RoundedCornerShape(10.dp),
                             color = goldColor.copy(alpha = 0.2f)
                         ) {
                             Text(
-                                "★ OFFICIAL",
+                                "OFFICIAL",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 8.sp
                                 ),
                                 color = goldColor,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                             )
                         }
                     }
@@ -535,10 +633,36 @@ private fun TokenItem(
                     style = MaterialTheme.typography.bodySmall,
                     color = textSecondary
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = token.color.copy(alpha = 0.12f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Outlined.PieChart,
+                            contentDescription = null,
+                            tint = token.color,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            "${String.format("%.1f", token.percentage)}% portfolio",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = token.color
+                        )
+                    }
+                }
             }
             
             // Balance and value
-            Column(horizontalAlignment = Alignment.End) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 Text(
                     token.balanceFormatted,
                     style = MaterialTheme.typography.titleMedium.copy(
@@ -557,17 +681,26 @@ private fun TokenItem(
                     )
                     // Percentage badge
                     Surface(
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(12.dp),
                         color = token.color.copy(alpha = 0.15f)
                     ) {
-                        Text(
-                            "${String.format("%.1f", token.percentage)}%",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold
-                            ),
-                            color = token.color,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Outlined.AttachMoney,
+                                contentDescription = null,
+                                tint = token.color,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                "USD",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = token.color
+                            )
+                        }
                     }
                 }
             }

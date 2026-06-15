@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.massapay.android.core.util.Constants
 import com.massapay.android.price.repository.PriceRepository
 import com.massapay.android.security.storage.SecureStorage
+import com.massapay.android.security.wallet.AccountManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -13,23 +14,42 @@ import javax.inject.Inject
 @HiltViewModel
 class ReceiveViewModel @Inject constructor(
     private val secureStorage: SecureStorage,
-    private val priceRepository: PriceRepository
+    private val priceRepository: PriceRepository,
+    private val accountManager: AccountManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ReceiveState())
     val uiState: StateFlow<ReceiveState> = _uiState
 
-    init {
-        viewModelScope.launch {
-            val address = secureStorage.getActiveWallet()
-            if (address != null) {
-                _uiState.update { it.copy(
-                    address = address,
-                    qrContent = generateQrContent(address, null)
-                ) }
-            }
+    private var currentAddress: String? = null
 
-            // Monitor USD price
+    init {
+        observeActiveAccount()
+        observePrice()
+    }
+
+    private fun observeActiveAccount() {
+        viewModelScope.launch {
+            accountManager.activeAccount.collectLatest { account ->
+                val address = account?.address ?: secureStorage.getActiveWallet()
+                if (address.isNullOrBlank() || address == currentAddress) {
+                    return@collectLatest
+                }
+
+                currentAddress = address
+                _uiState.update {
+                    it.copy(
+                        address = address,
+                        qrContent = generateQrContent(address, it.requestAmount.ifBlank { null }),
+                        error = null
+                    )
+                }
+            }
+        }
+    }
+
+    private fun observePrice() {
+        viewModelScope.launch {
             priceRepository.getPrice("massa").collect { result ->
                 when (result) {
                     is com.massapay.android.core.util.Result.Success -> _uiState.update { it.copy(usdPrice = result.data) }

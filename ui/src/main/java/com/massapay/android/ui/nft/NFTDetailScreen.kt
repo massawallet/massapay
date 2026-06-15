@@ -541,6 +541,7 @@ private fun DetailRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TransferDialog(
     isDarkTheme: Boolean,
@@ -555,10 +556,22 @@ private fun TransferDialog(
     val textColor = if (isDarkTheme) Color.White else Color.Black
     val secondaryTextColor = textColor.copy(alpha = 0.7f)
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = dialogColor,
-        title = { 
+        tonalElevation = 0.dp,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.85f)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     Icons.Default.Send,
@@ -573,111 +586,106 @@ private fun TransferDialog(
                     color = textColor
                 )
             }
-        },
-        text = {
-            Column {
-                Text(
-                    "Enter the recipient's Massa address to transfer this NFT.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = secondaryTextColor
-                )
-                
-                Spacer(modifier = Modifier.height(20.dp))
-                
-                OutlinedTextField(
-                    value = address,
-                    onValueChange = { 
-                        address = it.trim()
-                        isError = false
-                    },
-                    label = { Text("Recipient Address") },
-                    placeholder = { Text("AU1...") },
-                    modifier = Modifier.fillMaxWidth(),
-                    isError = isError,
-                    singleLine = true,
-                    trailingIcon = {
-                        IconButton(
-                            onClick = {
-                                clipboardManager.getText()?.text?.let { pastedText ->
-                                    address = pastedText.trim()
-                                    isError = false
-                                }
-                            }
-                        ) {
-                            Icon(
-                                Icons.Default.ContentPaste,
-                                contentDescription = "Paste",
-                                tint = secondaryTextColor
-                            )
-                        }
-                    },
-                    supportingText = if (isError) {
-                        { 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.Error,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Invalid Massa address (must start with AU)", color = MaterialTheme.colorScheme.error)
+
+            Text(
+                "Enter the recipient's Massa address to transfer this NFT.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = secondaryTextColor
+            )
+
+            OutlinedTextField(
+                value = address,
+                onValueChange = {
+                    address = it.trim()
+                    isError = false
+                },
+                label = { Text("Recipient Address") },
+                placeholder = { Text("AU1...") },
+                modifier = Modifier.fillMaxWidth(),
+                isError = isError,
+                singleLine = true,
+                trailingIcon = {
+                    IconButton(
+                        onClick = {
+                            clipboardManager.getText()?.text?.let { pastedText ->
+                                address = pastedText.trim()
+                                isError = false
                             }
                         }
-                    } else null,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = if (isDarkTheme) Color.White else Color.Black,
-                        unfocusedBorderColor = secondaryTextColor.copy(alpha = 0.5f),
-                        cursorColor = if (isDarkTheme) Color.White else Color.Black,
-                        focusedLabelColor = textColor,
-                        unfocusedLabelColor = secondaryTextColor
-                    )
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // Warning text
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            color = Color(0xFFFFF3E0),
-                            shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.ContentPaste,
+                            contentDescription = "Paste",
+                            tint = secondaryTextColor
                         )
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Icon(
-                        Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = Color(0xFFFF9800),
-                        modifier = Modifier.size(18.dp)
+                    }
+                },
+                supportingText = if (isError) {
+                    {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Error,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Invalid Massa address (must start with AU)", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                } else null,
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = if (isDarkTheme) Color.White else Color.Black,
+                    unfocusedBorderColor = secondaryTextColor.copy(alpha = 0.5f),
+                    cursorColor = if (isDarkTheme) Color.White else Color.Black,
+                    focusedLabelColor = textColor,
+                    unfocusedLabelColor = secondaryTextColor
+                )
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = if (isDarkTheme) Color(0xFF202124) else Color.White,
+                        shape = RoundedCornerShape(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "This action is irreversible. Make sure the address is correct.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF5D4037)
-                    )
-                }
+                    .padding(14.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = textColor,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "This action is irreversible. Make sure the address is correct.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = textColor
+                )
             }
-        },
-        confirmButton = {
+
+            Spacer(modifier = Modifier.weight(1f))
+
             Button(
-                onClick = { 
+                onClick = {
                     if (address.isNotEmpty() && address.startsWith("AU") && address.length > 40) {
-                        onConfirm(address) 
+                        onConfirm(address)
                     } else {
                         isError = true
                     }
                 },
-                modifier = Modifier.height(48.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isDarkTheme) Color.White else Color.Black,
                     contentColor = if (isDarkTheme) Color.Black else Color.White
                 ),
-                shape = RoundedCornerShape(12.dp)
+                shape = CircleShape
             ) {
                 Icon(
                     Icons.Default.Send,
@@ -687,16 +695,17 @@ private fun TransferDialog(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Transfer", fontWeight = FontWeight.SemiBold)
             }
-        },
-        dismissButton = {
+
             TextButton(
                 onClick = onDismiss,
-                modifier = Modifier.height(48.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
             ) {
                 Text("Cancel", color = secondaryTextColor, fontWeight = FontWeight.Medium)
             }
         }
-    )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -880,11 +889,11 @@ private fun NFTTransferSuccessScreen(
                 onClick = onDismiss,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .height(58.dp)
                     .graphicsLayer(alpha = alpha),
-                shape = RoundedCornerShape(16.dp),
+                shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50),
+                    containerColor = if (MaterialTheme.colorScheme.background == Color.Black) Color(0xFF202124) else Color.Black,
                     contentColor = Color.White
                 )
             ) {
@@ -994,11 +1003,11 @@ private fun NFTTransferFailureScreen(
                 onClick = onDismiss,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .height(58.dp)
                     .graphicsLayer(alpha = alpha),
-                shape = RoundedCornerShape(16.dp),
+                shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFF44336),
+                    containerColor = if (MaterialTheme.colorScheme.background == Color.Black) Color(0xFF202124) else Color.Black,
                     contentColor = Color.White
                 )
             ) {

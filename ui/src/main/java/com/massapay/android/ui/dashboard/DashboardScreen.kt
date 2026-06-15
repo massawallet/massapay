@@ -2,6 +2,7 @@ package com.massapay.android.ui.dashboard
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -22,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -37,6 +39,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.massapay.android.core.model.Transaction
 import com.massapay.android.core.model.TransactionStatus
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.massapay.android.ui.components.LucideIcons
 import java.text.NumberFormat
 import java.util.*
@@ -53,27 +57,31 @@ fun DashboardScreen(
     onAccountsClick: () -> Unit = {},
     onStakingClick: () -> Unit = {},
     onSwapClick: () -> Unit = {},
-    onDAppBrowserClick: () -> Unit = {},
     onPortfolioClick: () -> Unit = {},
+    nftEnabled: Boolean = false,
+    swapEnabled: Boolean = false,
+    stakingEnabled: Boolean = false,
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
-    
+    var showStatsSheet by remember { mutableStateOf(false) }
+    var showPortfolioSheet by remember { mutableStateOf(false) }
+
     // Parse account color from hex
     val accountColor = try {
         Color(android.graphics.Color.parseColor(uiState.activeAccountColor))
     } catch (e: Exception) {
         Color(0xFF2196F3)
     }
-    
+
     // Use MaterialTheme colors for consistent theming
     val backgroundColor = MaterialTheme.colorScheme.background
     val cardBackground = MaterialTheme.colorScheme.surfaceVariant
     val textPrimary = MaterialTheme.colorScheme.onBackground
     val textSecondary = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
     val iconTint = MaterialTheme.colorScheme.onBackground
-    
+
     // Accent colors - theme-aware for better visibility
     // Detect dark theme by checking if background is black (or very dark)
     val isDarkTheme = backgroundColor == Color.Black || backgroundColor == Color(0xFF000000)
@@ -81,7 +89,9 @@ fun DashboardScreen(
     val web3Cyan = if (isDarkTheme) Color(0xFF4DD0E1) else Color(0xFF0097A7)
     val web3Red = if (isDarkTheme) Color(0xFFFF6B6B) else Color(0xFFD32F2F)
     val web3Green = if (isDarkTheme) Color(0xFF4CAF50) else Color(0xFF2E7D32)
-    
+    val accountPillColor = if (isDarkTheme) Color.White else Color.Black
+    val accountPillContentColor = if (isDarkTheme) Color.Black else Color.White
+
     // Shimmer animation for loading state
     val shimmerTransition = rememberInfiniteTransition(label = "shimmer")
     val shimmerAlpha by shimmerTransition.animateFloat(
@@ -96,7 +106,7 @@ fun DashboardScreen(
 
     val clipboardManager = LocalClipboardManager.current
     var showCopiedToast by remember { mutableStateOf(false) }
-    
+
     // Auto-refresh when screen becomes visible (returning from Swap, Portfolio, etc.)
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -110,7 +120,7 @@ fun DashboardScreen(
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
-    
+
     // Show copied toast
     LaunchedEffect(showCopiedToast) {
         if (showCopiedToast) {
@@ -118,164 +128,132 @@ fun DashboardScreen(
             showCopiedToast = false
         }
     }
-    
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { 
-                    Column {
-                        Text(
-                            "MassaConnect",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                            ),
-                            color = textPrimary
-                        )
-                        // Account indicator with address - clickable to switch accounts
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable(onClick = onAccountsClick)
-                                .padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(accountColor)
-                            )
-                            Text(
-                                text = uiState.activeAccountName,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = textSecondary
-                            )
-                            // Wallet address inline
-                            uiState.activeWallet?.let { wallet ->
-                                Text(
-                                    text = "•",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = textSecondary.copy(alpha = 0.5f)
-                                )
-                                Text(
-                                    text = "${wallet.take(6)}...${wallet.takeLast(4)}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = textSecondary.copy(alpha = 0.7f)
-                                )
-                                // Copy button
-                                Box(
-                                    modifier = Modifier
-                                        .size(18.dp)
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            clipboardManager.setText(AnnotatedString(wallet))
-                                            showCopiedToast = true
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = if (showCopiedToast) Icons.Default.Check else Icons.Default.ContentCopy,
-                                        contentDescription = "Copy",
-                                        modifier = Modifier.size(12.dp),
-                                        tint = if (showCopiedToast) Color(0xFF4CAF50) else textSecondary.copy(alpha = 0.5f)
-                                    )
-                                }
-                            }
-                            if (uiState.accountCount > 1) {
-                                Text(
-                                    text = "(${uiState.accountCount})",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = textSecondary.copy(alpha = 0.5f)
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.Filled.KeyboardArrowDown,
-                                contentDescription = "Switch Account",
-                                tint = textSecondary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = backgroundColor,
-                    titleContentColor = textPrimary
-                ),
-                actions = {
-                    IconButton(onClick = onQrScanClick) {
-                        Icon(
-                            imageVector = LucideIcons.Scan,
-                            contentDescription = "Scan QR",
-                            tint = iconTint
-                        )
-                    }
-                }
-            )
-        },
-        bottomBar = {
-            // Modern bottom navigation with 5 items
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding(),
-                color = if (isDarkTheme) Color(0xFF0D0D15) else Color.White,
-                shadowElevation = 8.dp
+                color = backgroundColor,
+                tonalElevation = 0.dp
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                        .statusBarsPadding()
+                        .padding(start = 20.dp, end = 16.dp, top = 10.dp, bottom = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    ModernNavItem(
-                        icon = LucideIcons.House,
-                        label = "Home",
-                        isSelected = selectedTab == 0,
-                        isDarkTheme = isDarkTheme,
-                        onClick = { selectedTab = 0 }
-                    )
-                    ModernNavItem(
-                        icon = LucideIcons.Image,
-                        label = "NFT",
-                        isSelected = selectedTab == 1,
-                        isDarkTheme = isDarkTheme,
-                        onClick = { 
-                            selectedTab = 1
-                            onNftClick()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                "MassaConnect",
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                ),
+                                color = textPrimary,
+                                maxLines = 1
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.People,
+                                    contentDescription = null,
+                                    tint = textSecondary,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    "Connecting people",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                                    ),
+                                    color = textSecondary,
+                                    maxLines = 1
+                                )
+                            }
                         }
-                    )
-                    ModernNavItem(
-                        icon = LucideIcons.Globe,
-                        label = "DApps",
-                        isSelected = selectedTab == 2,
-                        isDarkTheme = isDarkTheme,
-                        onClick = { 
-                            selectedTab = 2
-                            onDAppBrowserClick()
+
+                        IconButton(onClick = onQrScanClick) {
+                            Icon(
+                                imageVector = LucideIcons.Scan,
+                                contentDescription = "Scan QR",
+                                tint = iconTint
+                            )
                         }
-                    )
-                    ModernNavItem(
-                        icon = LucideIcons.SendHorizontal,
-                        label = "Send",
-                        isSelected = selectedTab == 3,
-                        isDarkTheme = isDarkTheme,
-                        onClick = { 
-                            selectedTab = 3
-                            onSendClick()
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(accountPillColor)
+                            .clickable(onClick = onAccountsClick)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(accountColor)
+                        )
+                        Text(
+                            text = uiState.activeAccountName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = accountPillContentColor,
+                            maxLines = 1
+                        )
+                        uiState.activeWallet?.let { wallet ->
+                            Text(
+                                text = "•",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = accountPillContentColor.copy(alpha = 0.42f)
+                            )
+                            Text(
+                                text = "${wallet.take(6)}...${wallet.takeLast(4)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = accountPillContentColor.copy(alpha = 0.78f),
+                                maxLines = 1
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        clipboardManager.setText(AnnotatedString(wallet))
+                                        showCopiedToast = true
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (showCopiedToast) Icons.Default.Check else Icons.Default.ContentCopy,
+                                    contentDescription = "Copy",
+                                    modifier = Modifier.size(12.dp),
+                                    tint = if (showCopiedToast) Color(0xFF4CAF50) else accountPillContentColor.copy(alpha = 0.72f)
+                                )
+                            }
                         }
-                    )
-                    ModernNavItem(
-                        icon = LucideIcons.Settings,
-                        label = "Settings",
-                        isSelected = selectedTab == 4,
-                        isDarkTheme = isDarkTheme,
-                        onClick = { 
-                            selectedTab = 4
-                            onSettingsClick()
+                        if (uiState.accountCount > 1) {
+                            Text(
+                                text = "(${uiState.accountCount})",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = accountPillContentColor.copy(alpha = 0.62f)
+                            )
                         }
-                    )
+                        Icon(
+                            imageVector = Icons.Filled.KeyboardArrowDown,
+                            contentDescription = "Switch Account",
+                            tint = accountPillContentColor.copy(alpha = 0.82f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         },
@@ -292,7 +270,12 @@ fun DashboardScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
-                contentPadding = PaddingValues(20.dp),
+                contentPadding = PaddingValues(
+                    start = 20.dp,
+                    top = 20.dp,
+                    end = 20.dp,
+                    bottom = 120.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 // Balance Card - Web3 Style with Charts button
@@ -311,65 +294,31 @@ fun DashboardScreen(
                         textSecondary = textSecondary,
                         accentColor = web3Cyan,
                         onChartsClick = onChartsClick,
-                        onPortfolioClick = onPortfolioClick,
+                        onPortfolioClick = { showPortfolioSheet = true },
+                        onStatsClick = { showStatsSheet = true },
                         onToggleVisibility = viewModel::toggleBalanceVisibility,
                         massaStats = uiState.massaStats
                     )
                 }
 
-                // Quick Actions Grid (2x2)
+                // Core and advanced actions
                 item {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            QuickActionCard(
-                                icon = Icons.Outlined.ArrowUpward,
-                                label = "Send",
-                                onClick = onSendClick,
-                                color = web3Purple,
-                                cardBackground = cardBackground,
-                                textColor = textPrimary,
-                                modifier = Modifier.weight(1f)
-                            )
-                            QuickActionCard(
-                                icon = Icons.Outlined.ArrowDownward,
-                                label = "Receive",
-                                onClick = onReceiveClick,
-                                color = web3Cyan,
-                                cardBackground = cardBackground,
-                                textColor = textPrimary,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            QuickActionCard(
-                                icon = Icons.Outlined.Layers,
-                                label = "Staking",
-                                onClick = onStakingClick,
-                                color = web3Green,
-                                cardBackground = cardBackground,
-                                textColor = textPrimary,
-                                modifier = Modifier.weight(1f)
-                            )
-                            QuickActionCard(
-                                icon = Icons.Outlined.SwapHoriz,
-                                label = "Swap",
-                                onClick = onSwapClick,
-                                color = Color(0xFFFF9800),
-                                cardBackground = cardBackground,
-                                textColor = textPrimary,
-                                modifier = Modifier.weight(1f),
-                                enabled = true
-                            )
-                        }
-                    }
+                    DashboardActionPanel(
+                        cardBackground = cardBackground,
+                        textPrimary = textPrimary,
+                        textSecondary = textSecondary,
+                        web3Purple = web3Purple,
+                        web3Cyan = web3Cyan,
+                        web3Green = web3Green,
+                        swapEnabled = swapEnabled,
+                        stakingEnabled = stakingEnabled,
+                        nftEnabled = nftEnabled,
+                        onSendClick = onSendClick,
+                        onReceiveClick = onReceiveClick,
+                        onSwapClick = onSwapClick,
+                        onStakingClick = onStakingClick,
+                        onNftClick = onNftClick
+                    )
                 }
 
                 // Transactions Header
@@ -421,7 +370,149 @@ fun DashboardScreen(
                     }
                 }
             }
+
+            MobileBankingBottomBar(
+                selectedTab = selectedTab,
+                isDarkTheme = isDarkTheme,
+                onHomeClick = { selectedTab = 0 },
+                onNftClick = if (nftEnabled) {
+                    {
+                        selectedTab = 1
+                        onNftClick()
+                    }
+                } else null,
+                onSendClick = {
+                    selectedTab = 2
+                    onSendClick()
+                },
+                onReceiveClick = {
+                    selectedTab = 3
+                    onReceiveClick()
+                },
+                onSettingsClick = {
+                    selectedTab = 4
+                    onSettingsClick()
+                },
+                nftEnabled = nftEnabled,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+
+            // ---- Portfolio summary bottom sheet (Material 3) ----
+            if (showPortfolioSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showPortfolioSheet = false },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 0.dp,
+                    dragHandle = { BottomSheetDefaults.DragHandle() }
+                ) {
+                    val totalValue = uiState.totalPortfolioValue.toDouble().let {
+                        if (it > 0) it else (uiState.usdValue.toDoubleOrNull() ?: 0.0)
+                    }
+                    PortfolioSheet(
+                        totalValue = totalValue,
+                        masBalance = uiState.balance.toDoubleOrNull() ?: 0.0,
+                        masUsdValue = uiState.usdValue.toDoubleOrNull() ?: 0.0,
+                        masPrice = uiState.currentPrice,
+                        onViewFull = {
+                            showPortfolioSheet = false
+                            onPortfolioClick()
+                        }
+                    )
+                }
+            }
+
+            // ---- Massa market statistics bottom sheet (Material 3) ----
+            if (showStatsSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showStatsSheet = false },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 0.dp,
+                    dragHandle = { BottomSheetDefaults.DragHandle() }
+                ) {
+                    uiState.massaStats?.let { stats ->
+                        MassaStatsSheet(
+                            stats = stats,
+                            positiveColor = web3Green,
+                            negativeColor = web3Red,
+                            onClose = { showStatsSheet = false }
+                        )
+                    } ?: MassaStatsLoadingSheet(onClose = { showStatsSheet = false })
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun MassaStatsLoadingSheet(
+    onClose: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.72f)
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(48.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.TrendingUp,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+            Text(
+                "Massa market stats",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                ),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator()
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "Loading Massa statistics",
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
+                )
+            }
+        }
+        Button(
+            onClick = onClose,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .padding(bottom = 0.dp),
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (MaterialTheme.colorScheme.background == Color.Black) Color(0xFF202124) else Color.Black,
+                contentColor = Color.White
+            )
+        ) {
+            Text("Close")
+        }
+        Spacer(modifier = Modifier.height(18.dp))
     }
 }
 
@@ -441,13 +532,14 @@ private fun Web3BalanceCard(
     accentColor: Color,
     onChartsClick: () -> Unit,
     onPortfolioClick: () -> Unit,
+    onStatsClick: () -> Unit = {},
     onToggleVisibility: () -> Unit,
     massaStats: com.massapay.android.price.model.MassaStats?
 ) {
     // Use totalPortfolioValue if available, otherwise fall back to MAS-only value
     val displayUsdValue = if (totalPortfolioValue > 0) totalPortfolioValue else usdValue
     val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
-    
+
     // Button colors that work in both themes
     val iconButtonBg = if (isDarkTheme) {
         Color(0xFF1A1A1A)
@@ -459,21 +551,37 @@ private fun Web3BalanceCard(
     } else {
         Color(0xFF333333) // Dark gray in light mode
     }
-    
+
+    val cardShape = RoundedCornerShape(28.dp)
     Card(
         modifier = Modifier
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .shadow(
+                elevation = if (isDarkTheme) 0.dp else 18.dp,
+                shape = cardShape,
+                clip = false,
+                ambientColor = accentColor.copy(alpha = 0.20f),
+                spotColor = accentColor.copy(alpha = 0.20f)
+            ),
         colors = CardDefaults.cardColors(
             containerColor = cardBackground
         ),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isDarkTheme) 0.dp else 4.dp
-        )
+        shape = cardShape,
+        border = if (isDarkTheme) BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)) else null,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = 0.08f),
+                            Color.Transparent,
+                            accentColor.copy(alpha = 0.04f)
+                        )
+                    )
+                )
                 .padding(24.dp)
         ) {
             Column(
@@ -496,7 +604,7 @@ private fun Web3BalanceCard(
                             style = MaterialTheme.typography.bodyMedium,
                             color = textSecondary
                         )
-                        
+
                         // Eye icon without container - respects dark/light theme
                         IconButton(
                             onClick = onToggleVisibility,
@@ -510,10 +618,10 @@ private fun Web3BalanceCard(
                             )
                         }
                     }
-                    
-                    // View Charts Button
+
+                    // Massa statistics button
                     IconButton(
-                        onClick = onChartsClick,
+                        onClick = onStatsClick,
                         modifier = Modifier
                             .size(36.dp)
                             .background(
@@ -523,13 +631,13 @@ private fun Web3BalanceCard(
                     ) {
                         Icon(
                             Icons.Default.TrendingUp,
-                            contentDescription = "View Charts",
+                            contentDescription = "Massa Statistics",
                             tint = iconButtonTint,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                 }
-                
+
                 // Balance in USD (Total Portfolio Value) - Animated Counter
                 if (isLoading) {
                     com.massapay.android.ui.components.ShimmerBox(
@@ -539,7 +647,7 @@ private fun Web3BalanceCard(
                 } else {
                     if (isBalanceHidden) {
                         Text(
-                            text = "••••••",
+                            text = "â€¢â€¢â€¢â€¢â€¢â€¢",
                             style = MaterialTheme.typography.displaySmall.copy(
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                                 fontSize = 42.sp,
@@ -558,7 +666,7 @@ private fun Web3BalanceCard(
                         )
                     }
                 }
-                
+
                 // MAS Balance with Portfolio button next to it - Animated
                 if (isLoading) {
                     com.massapay.android.ui.components.ShimmerBox(
@@ -573,7 +681,7 @@ private fun Web3BalanceCard(
                     ) {
                         if (isBalanceHidden) {
                             Text(
-                                text = "•••• MAS",
+                                text = "â€¢â€¢â€¢â€¢ MAS",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                                     letterSpacing = 4.sp
@@ -591,7 +699,7 @@ private fun Web3BalanceCard(
                                 decimals = 4
                             )
                         }
-                        
+
                         // Portfolio Button - next to MAS balance
                         Surface(
                             onClick = onPortfolioClick,
@@ -619,22 +727,35 @@ private fun Web3BalanceCard(
                         }
                     }
                 }
-                
+
                 Divider(color = textSecondary.copy(alpha = 0.1f))
-                
-                // Massa Price Info (from CoinPaprika)
+
+                // Massa Price Info (from CoinPaprika) - tap to open detailed stats sheet
                 massaStats?.let { stats ->
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(onClick = onStatsClick)
+                            .padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text(
-                                "Massa Price",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = textSecondary
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "Massa Price",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = textSecondary
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Icon(
+                                    Icons.Default.KeyboardArrowUp,
+                                    contentDescription = "View details",
+                                    tint = textSecondary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
                             Text(
                                 "$${String.format("%.6f", stats.price)}",
                                 style = MaterialTheme.typography.titleMedium.copy(
@@ -648,18 +769,18 @@ private fun Web3BalanceCard(
                                 color = textSecondary
                             )
                         }
-                        
+
                         // 24h Change
                         val isPositive = stats.percentChange24h >= 0
                         val isDark = isSystemInDarkTheme()
-                        
+
                         val changeColor = when {
                             isPositive && isDark -> Color(0xFF4CAF50)
                             isPositive && !isDark -> Color(0xFF2E7D32)
                             !isPositive && isDark -> Color(0xFFFF6B6B)
                             else -> Color(0xFFD32F2F)
                         }
-                        
+
                         Surface(
                             color = changeColor.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(12.dp)
@@ -777,6 +898,236 @@ private fun Web3ActionButton(
     }
 }
 
+@Composable
+private fun DashboardActionPanel(
+    cardBackground: Color,
+    textPrimary: Color,
+    textSecondary: Color,
+    web3Purple: Color,
+    web3Cyan: Color,
+    web3Green: Color,
+    swapEnabled: Boolean,
+    stakingEnabled: Boolean,
+    nftEnabled: Boolean,
+    onSendClick: () -> Unit,
+    onReceiveClick: () -> Unit,
+    onSwapClick: () -> Unit,
+    onStakingClick: () -> Unit,
+    onNftClick: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    "Wallet actions",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    ),
+                    color = textPrimary
+                )
+                Text(
+                    "Advanced tools stay hidden until enabled",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = textSecondary
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            QuickActionCard(
+                icon = Icons.Outlined.ArrowUpward,
+                label = "Send",
+                onClick = onSendClick,
+                color = web3Purple,
+                cardBackground = cardBackground,
+                textColor = textPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            QuickActionCard(
+                icon = Icons.Outlined.ArrowDownward,
+                label = "Receive",
+                onClick = onReceiveClick,
+                color = web3Cyan,
+                cardBackground = cardBackground,
+                textColor = textPrimary,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        HiddenSectionsCard(
+            cardBackground = cardBackground,
+            textPrimary = textPrimary,
+            textSecondary = textSecondary,
+            nftEnabled = nftEnabled,
+            swapEnabled = swapEnabled,
+            stakingEnabled = stakingEnabled,
+            onNftClick = onNftClick,
+            onSwapClick = onSwapClick,
+            onStakingClick = onStakingClick,
+            nftColor = web3Cyan,
+            swapColor = Color(0xFFFF9800),
+            stakingColor = web3Green
+        )
+    }
+}
+
+@Composable
+private fun HiddenSectionsCard(
+    cardBackground: Color,
+    textPrimary: Color,
+    textSecondary: Color,
+    nftEnabled: Boolean,
+    swapEnabled: Boolean,
+    stakingEnabled: Boolean,
+    onNftClick: () -> Unit,
+    onSwapClick: () -> Unit,
+    onStakingClick: () -> Unit,
+    nftColor: Color,
+    swapColor: Color,
+    stakingColor: Color
+) {
+    val hasEnabledTools = nftEnabled || swapEnabled || stakingEnabled
+    if (!hasEnabledTools) return
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = cardBackground,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                            Color.Transparent
+                        )
+                    )
+                )
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Advanced section",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        ),
+                        color = textPrimary
+                    )
+                    Text(
+                        "Enabled tools appear here",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = textSecondary
+                    )
+                }
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                ) {
+                    Icon(
+                        Icons.Outlined.Tune,
+                        contentDescription = null,
+                        tint = textSecondary,
+                        modifier = Modifier
+                            .padding(10.dp)
+                            .size(20.dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (nftEnabled) {
+                    HiddenSectionButton(
+                        icon = Icons.Outlined.Image,
+                        label = "NFT",
+                        color = nftColor,
+                        onClick = onNftClick,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (swapEnabled) {
+                    HiddenSectionButton(
+                        icon = Icons.Outlined.SwapHoriz,
+                        label = "Swap",
+                        color = swapColor,
+                        onClick = onSwapClick,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (stakingEnabled) {
+                    HiddenSectionButton(
+                        icon = Icons.Outlined.Layers,
+                        label = "Staking",
+                        color = stakingColor,
+                        onClick = onStakingClick,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HiddenSectionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    color: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val contentColor = color
+    val bgColor = color.copy(alpha = 0.14f)
+
+    Surface(
+        onClick = onClick,
+        modifier = modifier.height(76.dp),
+        shape = RoundedCornerShape(18.dp),
+        color = bgColor,
+        border = BorderStroke(1.dp, contentColor.copy(alpha = 0.24f))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                icon,
+                contentDescription = label,
+                tint = contentColor,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                ),
+                color = contentColor,
+                maxLines = 1
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun QuickActionCard(
@@ -791,7 +1142,7 @@ private fun QuickActionCard(
 ) {
     val actualColor = if (enabled) color else color.copy(alpha = 0.4f)
     val actualTextColor = if (enabled) textColor else textColor.copy(alpha = 0.4f)
-    
+
     // Press animation
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -802,12 +1153,20 @@ private fun QuickActionCard(
         ),
         label = "cardScale"
     )
-    
+
+    val cardShape = RoundedCornerShape(20.dp)
     Card(
         onClick = { if (enabled) onClick() },
         modifier = modifier
-            .height(72.dp)
+            .height(74.dp)
             .scale(scale)
+            .shadow(
+                elevation = if (enabled && !isPressed) 10.dp else 0.dp,
+                shape = cardShape,
+                clip = false,
+                ambientColor = actualColor.copy(alpha = 0.28f),
+                spotColor = actualColor.copy(alpha = 0.28f)
+            )
             .pointerInput(enabled) {
                 if (enabled) {
                     detectTapGestures(
@@ -822,11 +1181,8 @@ private fun QuickActionCard(
         colors = CardDefaults.cardColors(
             containerColor = cardBackground
         ),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp,
-            pressedElevation = 0.dp
-        )
+        shape = cardShape,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -834,8 +1190,8 @@ private fun QuickActionCard(
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            actualColor.copy(alpha = 0.1f),
-                            actualColor.copy(alpha = 0.02f)
+                            actualColor.copy(alpha = 0.12f),
+                            actualColor.copy(alpha = 0.03f)
                         )
                     )
                 )
@@ -891,10 +1247,19 @@ private fun Web3TransactionItem(
     textSecondary: Color
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    
+    val isDark = isSystemInDarkTheme()
+    val txShape = RoundedCornerShape(20.dp)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .shadow(
+                elevation = if (isDark) 0.dp else 8.dp,
+                shape = txShape,
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.10f),
+                spotColor = Color.Black.copy(alpha = 0.10f)
+            )
             .clickable {
                 // Open Massa explorer in browser
                 val url = "https://explorer.massa.net/mainnet/operation/${transaction.hash}"
@@ -904,7 +1269,8 @@ private fun Web3TransactionItem(
         colors = CardDefaults.cardColors(
             containerColor = cardBackground
         ),
-        shape = RoundedCornerShape(16.dp)
+        border = if (isDark) BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)) else null,
+        shape = txShape
     ) {
         Row(
             modifier = Modifier
@@ -916,7 +1282,7 @@ private fun Web3TransactionItem(
             // Icon Container
             val isSent = transaction.from.equals(walletAddress, ignoreCase = true)
             val iconColor = if (isSent) accentColorSent else accentColorReceive
-            
+
             Surface(
                 color = iconColor.copy(alpha = 0.15f),
                 shape = CircleShape,
@@ -948,7 +1314,7 @@ private fun Web3TransactionItem(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    java.text.SimpleDateFormat("MMM dd, yyyy • HH:mm", java.util.Locale.getDefault())
+                    java.text.SimpleDateFormat("MMM dd, yyyy â€¢ HH:mm", java.util.Locale.getDefault())
                         .format(java.util.Date(transaction.timestamp)),
                     style = MaterialTheme.typography.bodySmall,
                     color = textSecondary
@@ -1014,7 +1380,7 @@ private fun Web3ShimmerTransaction(
         colors = CardDefaults.cardColors(
             containerColor = cardBackground
         ),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(20.dp)
     ) {
         Row(
             modifier = Modifier
@@ -1131,7 +1497,7 @@ private fun ModernNavButton(
     val isDark = isSystemInDarkTheme()
     val iconTint = if (isDark) Color.White else Color.Black
     val iconTintSecondary = if (isDark) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.5f)
-    
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -1201,14 +1567,14 @@ fun BalanceCard(
                 if (showUsdValue) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "≈ $${formatNumber(usdValue)} USD",
+                        text = "â‰ˆ $${formatNumber(usdValue)} USD",
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 // Price metrics row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1220,28 +1586,28 @@ fun BalanceCard(
                         change = "+2.4%",
                         isPositive = true
                     )
-                    
+
                     Divider(
                         modifier = Modifier
                             .height(40.dp)
                             .width(1.dp),
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.3f)
                     )
-                    
+
                     PriceMetric(
                         label = "24h Change",
                         value = "+0.0008",
                         change = "+2.4%",
                         isPositive = true
                     )
-                    
+
                     Divider(
                         modifier = Modifier
                             .height(40.dp)
                             .width(1.dp),
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.3f)
                     )
-                    
+
                     PriceMetric(
                         label = "Market Cap",
                         value = "$34.2M",
@@ -1367,21 +1733,70 @@ fun TransactionItem(transaction: Transaction, activeWallet: String?) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ErrorDialog(
     error: String,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text("Error") },
-        text = { Text(error) },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.45f)
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                modifier = Modifier.size(48.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.Error,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            Text(
+                text = "Error",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (MaterialTheme.colorScheme.background == Color.Black) Color(0xFF202124) else Color.Black,
+                    contentColor = Color.White
+                )
+            ) {
                 Text("Retry")
             }
         }
-    )
+    }
 }
 
 private fun formatNumber(value: String): String {
@@ -1430,9 +1845,9 @@ fun ModernBalanceCard(
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 if (isLoading) {
                     Surface(
                         modifier = Modifier
@@ -1450,9 +1865,9 @@ fun ModernBalanceCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 if (isLoading) {
                     Surface(
                         modifier = Modifier
@@ -1463,7 +1878,7 @@ fun ModernBalanceCard(
                     ) {}
                 } else {
                     Text(
-                        "≈ $$usdValue USD",
+                        "â‰ˆ $$usdValue USD",
                         style = MaterialTheme.typography.bodyLarge.copy(
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                         ),
@@ -1480,7 +1895,7 @@ fun ModernPriceMetricsCard(priceInfo: Any?) {
     // TODO: Implement when priceInfo is added to DashboardState
     /*
     if (priceInfo == null) return
-    
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -1500,18 +1915,18 @@ fun ModernPriceMetricsCard(priceInfo: Any?) {
                 value = "$${String.format("%.2f", priceInfo.price)}",
                 modifier = Modifier.weight(1f)
             )
-            
+
             PriceMetricItem(
                 icon = Icons.Outlined.TrendingUp,
                 label = "24h Change",
                 value = "${String.format("%.2f", priceInfo.change24h)}%",
-                valueColor = if (priceInfo.change24h >= 0) 
-                    MaterialTheme.colorScheme.primary 
-                else 
+                valueColor = if (priceInfo.change24h >= 0)
+                    MaterialTheme.colorScheme.primary
+                else
                     MaterialTheme.colorScheme.error,
                 modifier = Modifier.weight(1f)
             )
-            
+
             PriceMetricItem(
                 icon = Icons.Outlined.ShowChart,
                 label = "Market Cap",
@@ -1573,7 +1988,7 @@ fun ModernTransactionItem(
 ) {
     // Determine if outgoing based on the current wallet address
     val isOutgoing = transaction.from.equals(walletAddress, ignoreCase = true)
-    
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -1590,26 +2005,26 @@ fun ModernTransactionItem(
             Surface(
                 modifier = Modifier.size(48.dp),
                 shape = RoundedCornerShape(12.dp),
-                color = if (isOutgoing) 
+                color = if (isOutgoing)
                     MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
-                else 
+                else
                     MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         if (isOutgoing) Icons.Outlined.ArrowUpward else Icons.Outlined.ArrowDownward,
                         contentDescription = null,
-                        tint = if (isOutgoing) 
-                            MaterialTheme.colorScheme.error 
-                        else 
+                        tint = if (isOutgoing)
+                            MaterialTheme.colorScheme.error
+                        else
                             MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp)
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.width(16.dp))
-            
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     if (isOutgoing) "Sent" else "Received",
@@ -1625,16 +2040,16 @@ fun ModernTransactionItem(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
-            
+
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     "${if (isOutgoing) "-" else "+"}${transaction.amount} ${transaction.token.symbol}",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                     ),
-                    color = if (isOutgoing) 
-                        MaterialTheme.colorScheme.error 
-                    else 
+                    color = if (isOutgoing)
+                        MaterialTheme.colorScheme.error
+                    else
                         MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
@@ -1651,7 +2066,7 @@ fun StatusBadge(status: TransactionStatus) {
         TransactionStatus.CONFIRMED -> "Confirmed" to MaterialTheme.colorScheme.primary
         TransactionStatus.FAILED -> "Failed" to MaterialTheme.colorScheme.error
     }
-    
+
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = color.copy(alpha = 0.2f)
@@ -1677,7 +2092,7 @@ fun ShimmerTransactionItem() {
         ),
         label = "alpha"
     )
-    
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -1696,9 +2111,9 @@ fun ShimmerTransactionItem() {
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha * 0.2f)
             ) {}
-            
+
             Spacer(modifier = Modifier.width(16.dp))
-            
+
             Column(modifier = Modifier.weight(1f)) {
                 Surface(
                     modifier = Modifier
@@ -1804,14 +2219,187 @@ private fun FlatNavItem(
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(
-                fontWeight = if (isSelected) 
-                    androidx.compose.ui.text.font.FontWeight.SemiBold 
-                else 
+                fontWeight = if (isSelected)
+                    androidx.compose.ui.text.font.FontWeight.SemiBold
+                else
                     androidx.compose.ui.text.font.FontWeight.Normal
             ),
             color = if (isDarkTheme) Color.White else Color.Black,
             maxLines = 1,
             fontSize = 11.sp
+        )
+    }
+}
+
+@Composable
+private fun MobileBankingBottomBar(
+    selectedTab: Int,
+    isDarkTheme: Boolean,
+    onHomeClick: () -> Unit,
+    onNftClick: (() -> Unit)?,
+    onSendClick: () -> Unit,
+    onReceiveClick: () -> Unit,
+    onSettingsClick: () -> Unit,
+    nftEnabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val barShape = RoundedCornerShape(percent = 50)
+    val barColor = if (isDarkTheme) {
+        Color(0xFF202124).copy(alpha = 0.92f)
+    } else {
+        Color.Black.copy(alpha = 0.90f)
+    }
+    val borderColor = if (isDarkTheme) {
+        Color.White.copy(alpha = 0.14f)
+    } else {
+        Color.White.copy(alpha = 0.16f)
+    }
+    val shadowColor = if (isDarkTheme) {
+        Color.Black.copy(alpha = 0.45f)
+    } else {
+        Color.Black.copy(alpha = 0.16f)
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(74.dp)
+                .shadow(
+                    elevation = 24.dp,
+                    shape = barShape,
+                    clip = false,
+                    ambientColor = shadowColor,
+                    spotColor = shadowColor
+                ),
+            shape = barShape,
+            color = barColor,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+            border = BorderStroke(1.dp, borderColor)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BankingNavItem(
+                    icon = LucideIcons.House,
+                    label = "Inicio",
+                    selected = selectedTab == 0,
+                    isDarkTheme = isDarkTheme,
+                    onClick = onHomeClick
+                )
+                if (nftEnabled && onNftClick != null) {
+                    BankingNavItem(
+                        icon = LucideIcons.Image,
+                        label = "NFT",
+                        selected = selectedTab == 1,
+                        isDarkTheme = isDarkTheme,
+                        onClick = onNftClick
+                    )
+                }
+                BankingNavItem(
+                    icon = LucideIcons.SendHorizontal,
+                    label = "Send",
+                    selected = selectedTab == 2,
+                    isDarkTheme = isDarkTheme,
+                    onClick = onSendClick
+                )
+                BankingNavItem(
+                    icon = LucideIcons.ArrowDownToLine,
+                    label = "Recibe",
+                    selected = selectedTab == 3,
+                    isDarkTheme = isDarkTheme,
+                    onClick = onReceiveClick
+                )
+                BankingNavItem(
+                    icon = LucideIcons.Settings,
+                    label = "Settings",
+                    selected = selectedTab == 4,
+                    isDarkTheme = isDarkTheme,
+                    onClick = onSettingsClick
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.BankingNavItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    selected: Boolean,
+    isDarkTheme: Boolean,
+    onClick: () -> Unit
+) {
+    val selectedColor = Color.White
+    val unselectedColor = Color.White.copy(alpha = 0.66f)
+    val iconColor = if (selected) selectedColor else unselectedColor
+    val labelColor = if (selected) selectedColor else unselectedColor
+    val circleColor = if (isDarkTheme) {
+        Color.White.copy(alpha = if (selected) 0.18f else 0.08f)
+    } else {
+        Color.White.copy(alpha = if (selected) 0.20f else 0.08f)
+    }
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.04f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "bankingNavScale"
+    )
+
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .scale(scale)
+            .clip(RoundedCornerShape(24.dp))
+            .clickable(
+                onClick = onClick,
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            )
+            .padding(vertical = 7.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(if (selected) circleColor else Color.Transparent),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = iconColor,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = if (selected) {
+                    androidx.compose.ui.text.font.FontWeight.SemiBold
+                } else {
+                    androidx.compose.ui.text.font.FontWeight.Medium
+                }
+            ),
+            color = labelColor,
+            maxLines = 1,
+            textAlign = TextAlign.Center,
+            fontSize = 10.sp
         )
     }
 }
@@ -1828,7 +2416,7 @@ private fun ModernNavItem(
     val selectedBg = if (isDarkTheme) Color.White else Color.Black
     val selectedContent = if (isDarkTheme) Color.Black else Color.White
     val unselectedColor = if (isDarkTheme) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.5f)
-    
+
     // Animated scale on selection
     val scale by animateFloatAsState(
         targetValue = if (isSelected) 1.05f else 1f,
@@ -1838,7 +2426,7 @@ private fun ModernNavItem(
         ),
         label = "navScale"
     )
-    
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -1862,14 +2450,607 @@ private fun ModernNavItem(
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(
-                fontWeight = if (isSelected) 
-                    androidx.compose.ui.text.font.FontWeight.Bold 
-                else 
+                fontWeight = if (isSelected)
+                    androidx.compose.ui.text.font.FontWeight.Bold
+                else
                     androidx.compose.ui.text.font.FontWeight.Normal
             ),
             color = if (isSelected) selectedContent else unselectedColor,
             maxLines = 1,
             fontSize = 10.sp
+        )
+    }
+}
+
+@Composable
+private fun PortfolioSheet(
+    totalValue: Double,
+    masBalance: Double,
+    masUsdValue: Double,
+    masPrice: Double,
+    onViewFull: () -> Unit
+) {
+    val primary = MaterialTheme.colorScheme.primary
+    val surface = MaterialTheme.colorScheme.surface
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val subtle = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f)
+    val isDark = isSystemInDarkTheme()
+    val heroStart = if (isDark) Color(0xFF202124) else Color.Black
+    val heroEnd = if (isDark) Color(0xFF111315) else Color(0xFF303030)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.9f)
+            .navigationBarsPadding()
+            .imePadding()
+            .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(48.dp),
+                shape = CircleShape,
+                color = primary.copy(alpha = 0.12f),
+                border = BorderStroke(1.dp, primary.copy(alpha = 0.18f))
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.AccountBalanceWallet,
+                        contentDescription = null,
+                        tint = primary,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Portfolio",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    ),
+                    color = onSurface
+                )
+                Text(
+                    "Your Massa position at a glance",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onSurface.copy(alpha = 0.58f)
+                )
+            }
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(32.dp),
+                color = heroStart,
+                shadowElevation = 2.dp
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    heroStart,
+                                    heroEnd
+                                ),
+                                start = Offset.Zero,
+                                end = Offset.Infinite
+                            )
+                        )
+                        .padding(22.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.White.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
+                            ) {
+                                Icon(
+                                    Icons.Outlined.AccountBalanceWallet,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier
+                                        .padding(10.dp)
+                                        .size(24.dp)
+                                )
+                            }
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.White.copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    "MAS",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                    ),
+                                    color = Color.White
+                                )
+                            }
+                        }
+                        Text(
+                            "Total Portfolio Value",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Color.White.copy(alpha = 0.68f)
+                        )
+                        Text(
+                            "$${String.format("%,.2f", totalValue)}",
+                            style = MaterialTheme.typography.headlineLarge.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Black
+                            ),
+                            color = Color.White
+                        )
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.10f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Token,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.82f),
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Text(
+                                    "${String.format("%.4f", masBalance)} MAS available",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                                    ),
+                                    color = Color.White.copy(alpha = 0.88f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                PortfolioMetricCard(
+                    icon = Icons.Outlined.Paid,
+                    label = "USD value",
+                    value = "$${String.format("%,.2f", masUsdValue)}",
+                    modifier = Modifier.weight(1f),
+                    containerColor = subtle
+                )
+                PortfolioMetricCard(
+                    icon = Icons.Outlined.ShowChart,
+                    label = "MAS price",
+                    value = "$${String.format("%.6f", masPrice)}",
+                    modifier = Modifier.weight(1f),
+                    containerColor = subtle
+                )
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                color = subtle
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = primary.copy(alpha = 0.12f)
+                        ) {
+                            Icon(
+                                Icons.Outlined.Insights,
+                                contentDescription = null,
+                                tint = primary,
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .size(18.dp)
+                            )
+                        }
+                        Text(
+                            "Account summary",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            ),
+                            color = onSurface
+                        )
+                    }
+                    SheetStatRow("Balance MAS", "${String.format("%.4f", masBalance)} MAS")
+                    SheetStatRow("USD value", "$${String.format("%,.2f", masUsdValue)}")
+                    SheetStatRow("MAS price", "$${String.format("%.6f", masPrice)}")
+                }
+            }
+        }
+        Button(
+            onClick = onViewFull,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp)
+                .padding(bottom = 0.dp),
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (MaterialTheme.colorScheme.background == Color.Black) Color(0xFF202124) else Color.Black,
+                contentColor = Color.White
+            )
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("View full portfolio", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Icon(
+                    Icons.Outlined.ArrowForward,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(18.dp))
+    }
+}
+
+@Composable
+private fun PortfolioMetricCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    containerColor: Color,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(22.dp),
+        color = containerColor
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .size(18.dp)
+                )
+            }
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
+            )
+            Text(
+                value,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                ),
+                color = valueColor,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun MassaStatsSheet(
+    stats: com.massapay.android.price.model.MassaStats,
+    positiveColor: Color,
+    negativeColor: Color,
+    onClose: () -> Unit
+) {
+    val primary = MaterialTheme.colorScheme.primary
+    val pctColor = { v: Double -> if (v >= 0) positiveColor else negativeColor }
+    val pctText = { v: Double -> "${if (v >= 0) "+" else ""}${String.format("%.2f", v)}%" }
+    val subtle = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f)
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val isDark = isSystemInDarkTheme()
+    val heroStart = if (isDark) Color(0xFF202124) else Color.Black
+    val heroEnd = if (isDark) Color(0xFF111315) else Color(0xFF303030)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.9f)
+            .navigationBarsPadding()
+            .imePadding()
+            .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(48.dp),
+                shape = CircleShape,
+                color = primary.copy(alpha = 0.12f),
+                border = BorderStroke(1.dp, primary.copy(alpha = 0.18f))
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.TrendingUp,
+                        contentDescription = null,
+                        tint = primary,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Massa Market Stats",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    ),
+                    color = onSurface
+                )
+                Text(
+                    "Network market pulse and price movement",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onSurface.copy(alpha = 0.58f)
+                )
+            }
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(32.dp),
+                color = heroStart,
+                shadowElevation = 2.dp
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    heroStart,
+                                    heroEnd
+                                ),
+                                start = Offset.Zero,
+                                end = Offset.Infinite
+                            )
+                        )
+                        .padding(22.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.White.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
+                            ) {
+                                Icon(
+                                    Icons.Outlined.ShowChart,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier
+                                        .padding(10.dp)
+                                        .size(24.dp)
+                                )
+                            }
+                            Surface(
+                                shape = CircleShape,
+                                color = pctColor(stats.percentChange24h).copy(alpha = 0.20f),
+                                border = BorderStroke(1.dp, pctColor(stats.percentChange24h).copy(alpha = 0.34f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        if (stats.percentChange24h >= 0) Icons.Outlined.TrendingUp else Icons.Outlined.TrendingDown,
+                                        contentDescription = null,
+                                        tint = pctColor(stats.percentChange24h),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        "24h ${pctText(stats.percentChange24h)}",
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                        ),
+                                        color = pctColor(stats.percentChange24h)
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            "Massa price",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Color.White.copy(alpha = 0.68f)
+                        )
+                        Text(
+                            "$${String.format("%.6f", stats.price)}",
+                            style = MaterialTheme.typography.headlineLarge.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Black
+                            ),
+                            color = Color.White
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.White.copy(alpha = 0.10f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
+                            ) {
+                                Text(
+                                    "Rank #${stats.rank}",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                    ),
+                                    color = Color.White.copy(alpha = 0.88f)
+                                )
+                            }
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.White.copy(alpha = 0.10f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
+                            ) {
+                                Text(
+                                    "Powered by Massa",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                    ),
+                                    color = Color.White.copy(alpha = 0.88f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                PortfolioMetricCard(
+                    icon = Icons.Outlined.ShowChart,
+                    label = "7d",
+                    value = pctText(stats.percentChange7d),
+                    valueColor = pctColor(stats.percentChange7d),
+                    modifier = Modifier.weight(1f),
+                    containerColor = subtle
+                )
+                PortfolioMetricCard(
+                    icon = Icons.Outlined.Timeline,
+                    label = "30d",
+                    value = pctText(stats.percentChange30d),
+                    valueColor = pctColor(stats.percentChange30d),
+                    modifier = Modifier.weight(1f),
+                    containerColor = subtle
+                )
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                color = subtle
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = primary.copy(alpha = 0.12f)
+                        ) {
+                            Icon(
+                                Icons.Outlined.Analytics,
+                                contentDescription = null,
+                                tint = primary,
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .size(18.dp)
+                            )
+                        }
+                        Text(
+                            "Market details",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            ),
+                            color = onSurface
+                        )
+                    }
+                    SheetStatRow("Vol 24h", formatMarketCap(stats.volume24h))
+                    SheetStatRow("Market cap", formatMarketCap(stats.marketCap))
+                    SheetStatRow("ATH", "$${String.format("%.6f", stats.athPrice)}")
+                    SheetStatRow("From ATH", pctText(stats.percentFromAth), pctColor(stats.percentFromAth))
+                    if (stats.totalSupply > 0) {
+                        SheetStatRow("Total supply", String.format("%,d MAS", stats.totalSupply))
+                    }
+                }
+            }
+        }
+        Button(
+            onClick = onClose,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp),
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (MaterialTheme.colorScheme.background == Color.Black) Color(0xFF202124) else Color.Black,
+                contentColor = Color.White
+            )
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Close", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(18.dp))
+    }
+}
+
+@Composable
+private fun SheetStatRow(
+    label: String,
+    value: String,
+    valueColor: Color = Color.Unspecified
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+            ),
+            color = if (valueColor == Color.Unspecified) MaterialTheme.colorScheme.onSurface else valueColor
         )
     }
 }

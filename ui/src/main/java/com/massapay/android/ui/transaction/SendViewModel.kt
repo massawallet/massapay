@@ -40,30 +40,55 @@ class SendViewModel @Inject constructor(
         }
     }
 
+    private var currentAccountAddress: String? = null
+
     init {
+        observeActiveAccount()
+        observePrice()
+    }
+
+    private fun observeActiveAccount() {
+        viewModelScope.launch {
+            accountManager.activeAccount.collectLatest { account ->
+                val address = account?.address ?: secureStorage.getActiveWallet()
+                if (address.isNullOrBlank() || address == currentAccountAddress) {
+                    return@collectLatest
+                }
+
+                currentAccountAddress = address
+                _uiState.update {
+                    it.copy(
+                        availableBalance = "0",
+                        isLoading = true,
+                        isValidAmount = it.amount.isBlank(),
+                        activeAccountAddress = address,
+                        activeAccountName = account?.name,
+                        error = null,
+                        showAuthDialog = false,
+                        showSuccessScreen = false,
+                        showFailureScreen = false
+                    )
+                }
+                loadBalance(address)
+            }
+        }
+    }
+
+    private fun observePrice() {
         viewModelScope.launch {
             try {
-                // Get current wallet balance from AccountManager or SecureStorage
-                val activeAccount = accountManager.activeAccount.value
-                val address = activeAccount?.address ?: secureStorage.getActiveWallet()
-                
-                address?.let { loadBalance(it) }
-
-                // Start USD price updates
                 priceRepository.getPrice("massa").collect { result ->
-                    when (result) {
-                        is com.massapay.android.core.util.Result.Success -> {
-                            val price = result.data
-                            _uiState.update { it.copy(
+                    if (result is com.massapay.android.core.util.Result.Success) {
+                        val price = result.data
+                        _uiState.update {
+                            it.copy(
                                 usdPrice = price,
                                 usdAmount = calculateUsdAmount(it.amount, price)
-                            ) }
+                            )
                         }
-                        else -> { /* ignore errors/loading */ }
                     }
                 }
-            } catch (e: Exception) {
-                // Fail gracefully if price service is unavailable
+            } catch (_: Exception) {
                 _uiState.update { it.copy(isLoading = false) }
             }
         }
@@ -72,10 +97,22 @@ class SendViewModel @Inject constructor(
     private suspend fun loadBalance(address: String) {
         when (val balRes = massaRepository.getAddressBalance(address)) {
             is com.massapay.android.core.util.Result.Success -> {
-                _uiState.update { it.copy(
-                    availableBalance = balRes.data,
-                    isLoading = false
-                ) }
+                _uiState.update {
+                    it.copy(
+                        availableBalance = balRes.data,
+                        isLoading = false,
+                        isValidAmount = isAmountValid(it.amount, balRes.data)
+                    )
+                }
+            }
+            is com.massapay.android.core.util.Result.Error -> {
+                _uiState.update {
+                    it.copy(
+                        availableBalance = "0",
+                        isLoading = false,
+                        isValidAmount = it.amount.isBlank()
+                    )
+                }
             }
             else -> { /* ignore errors for now */ }
         }
@@ -97,7 +134,10 @@ class SendViewModel @Inject constructor(
                 _uiState.update { it.copy(
                     usdAmount = amount,
                     amount = if (masAmount > BigDecimal.ZERO) masAmount.toPlainString() else "",
-                    isValidAmount = masAmount > BigDecimal.ZERO && masAmount <= it.availableBalance.toBigDecimal()
+                    isValidAmount = isAmountValid(
+                        if (masAmount > BigDecimal.ZERO) masAmount.toPlainString() else "",
+                        it.availableBalance
+                    )
                 ) }
                 
                 if (masAmount > BigDecimal.ZERO) {
@@ -109,7 +149,8 @@ class SendViewModel @Inject constructor(
                 _uiState.update { it.copy(
                     amount = amount,
                     usdAmount = calculateUsdAmount(amount, it.usdPrice),
-                    isValidAmount = numericAmount <= it.availableBalance.toBigDecimal()
+                    isValidAmount = numericAmount > BigDecimal.ZERO &&
+                        numericAmount <= (it.availableBalance.toBigDecimalOrNull() ?: BigDecimal.ZERO)
                 ) }
                 
                 if (numericAmount > BigDecimal.ZERO) {
@@ -129,7 +170,8 @@ class SendViewModel @Inject constructor(
         _uiState.update { it.copy(
             isUsdMode = !it.isUsdMode,
             amount = "",
-            usdAmount = ""
+            usdAmount = "",
+            isValidAmount = true
         ) }
     }
     
@@ -155,10 +197,19 @@ class SendViewModel @Inject constructor(
     }
 
     fun updateAddress(address: String) {
+        val normalizedAddress = address.trim()
         _uiState.update { it.copy(
-            recipientAddress = address,
-            isValidAddress = massaRepository.validateMassaAddress(address)
+            recipientAddress = normalizedAddress,
+            isValidAddress = isStrictMassaAddress(normalizedAddress)
         ) }
+    }
+
+    private fun isStrictMassaAddress(address: String): Boolean {
+        val base58Alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+        return (address.length == 52 || address.length == 53) &&
+            address.startsWith("AU1") &&
+            address.drop(2).all { it in base58Alphabet } &&
+            massaRepository.validateMassaAddress(address)
     }
 
     private fun estimateFee(amount: String) {
@@ -193,10 +244,45 @@ class SendViewModel @Inject constructor(
     
     private fun sendTransaction() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.update { it.copy(isLoading = true, error = null) }
             
             val activeAccount = accountManager.activeAccount.value
             val fromAddress = activeAccount?.address ?: secureStorage.getActiveWallet() ?: return@launch
+            val amountToSend = _uiState.value.amount.toBigDecimalOrNull()
+            if (amountToSend == null || amountToSend <= BigDecimal.ZERO) {
+                _uiState.update { it.copy(
+                    error = "Enter a valid amount",
+                    isLoading = false
+                ) }
+                return@launch
+            }
+
+            when (val balanceResult = massaRepository.getAddressBalance(fromAddress)) {
+                is com.massapay.android.core.util.Result.Success -> {
+                    val liveBalance = balanceResult.data.toBigDecimalOrNull() ?: BigDecimal.ZERO
+                    _uiState.update {
+                        it.copy(
+                            availableBalance = balanceResult.data,
+                            isValidAmount = amountToSend <= liveBalance
+                        )
+                    }
+                    if (amountToSend > liveBalance) {
+                        _uiState.update { it.copy(
+                            error = "Insufficient balance for the selected account",
+                            isLoading = false
+                        ) }
+                        return@launch
+                    }
+                }
+                is com.massapay.android.core.util.Result.Error -> {
+                    _uiState.update { it.copy(
+                        error = balanceResult.exception.message ?: "Could not verify selected account balance",
+                        isLoading = false
+                    ) }
+                    return@launch
+                }
+                else -> Unit
+            }
             
             // Get private key from AccountManager
             val privateKeyBytes = if (activeAccount != null) {
@@ -268,14 +354,16 @@ class SendViewModel @Inject constructor(
                 _uiState.update { it.copy(
                     recipientAddress = address,
                     amount = amount ?: it.amount,
-                    isValidAddress = massaRepository.validateMassaAddress(address)
+                    usdAmount = calculateUsdAmount(amount ?: it.amount, it.usdPrice),
+                    isValidAmount = isAmountValid(amount ?: it.amount, it.availableBalance),
+                    isValidAddress = isStrictMassaAddress(address)
                 ) }
             } else {
                 // Treat as plain address
                 val address = qrData.trim()
                 _uiState.update { it.copy(
                     recipientAddress = address,
-                    isValidAddress = massaRepository.validateMassaAddress(address)
+                    isValidAddress = isStrictMassaAddress(address)
                 ) }
             }
         } catch (e: Exception) {
@@ -300,6 +388,13 @@ class SendViewModel @Inject constructor(
             "0"
         }
     }
+
+    private fun isAmountValid(amount: String, balance: String): Boolean {
+        if (amount.isBlank()) return true
+        val numericAmount = amount.toBigDecimalOrNull() ?: return false
+        val availableBalance = balance.toBigDecimalOrNull() ?: BigDecimal.ZERO
+        return numericAmount > BigDecimal.ZERO && numericAmount <= availableBalance
+    }
 }
 
 data class SendState(
@@ -316,6 +411,8 @@ data class SendState(
     val showAuthDialog: Boolean = false,
     val transactionHash: String? = null,
     val error: String? = null,
+    val activeAccountAddress: String? = null,
+    val activeAccountName: String? = null,
     val isUsdMode: Boolean = false,  // Toggle between MAS and USD input
     val showSuccessScreen: Boolean = false,
     val showFailureScreen: Boolean = false

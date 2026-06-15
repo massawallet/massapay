@@ -1141,10 +1141,11 @@ class MassaRepository @Inject constructor(
             val cachedTransactions = loadTransactionsFromPrefs(address).toMutableList()
             
             // Detect balance changes to identify incoming transactions
-            try {
+            val incomingDetected = try {
                 detectIncomingTransactions(address, cachedTransactions)
             } catch (e: Exception) {
                 Log.e("MassaRepository", "Error detecting incoming transactions", e)
+                false
             }
             
             // Update status of pending transactions
@@ -1170,15 +1171,20 @@ class MassaRepository @Inject constructor(
                 }
             }
             
-            // Save updated transactions back to cache if changed
-            if (updatedTransactions != cachedTransactions) {
-                saveTransactionsToPrefs(address, updatedTransactions)
+            val sortedTransactions = updatedTransactions
+                .distinctBy { it.hash }
+                .sortedByDescending { it.timestamp }
+                .take(MAX_CACHED_TRANSACTIONS)
+
+            // Save updated transactions back to cache if changed, including newly detected incoming txs.
+            if (incomingDetected || sortedTransactions != loadTransactionsFromPrefs(address)) {
+                saveTransactionsToPrefs(address, sortedTransactions)
                 Log.d("MassaRepository", "Updated transaction cache")
             }
             
-            Log.d("MassaRepository", "Returning ${updatedTransactions.size} cached transactions")
+            Log.d("MassaRepository", "Returning ${sortedTransactions.size} cached transactions")
             
-            Result.Success(updatedTransactions)
+            Result.Success(sortedTransactions)
         } catch (e: Exception) {
             Log.e("MassaRepository", "Error in getTransactionHistory", e)
             Result.Error(e)
@@ -1189,20 +1195,28 @@ class MassaRepository @Inject constructor(
      * Detect incoming transactions by monitoring balance changes
      * This is a workaround since Massa API doesn't provide "get transactions by address"
      */
-    private suspend fun detectIncomingTransactions(address: String, cachedTransactions: MutableList<Transaction>) {
-        try {
+    private suspend fun detectIncomingTransactions(address: String, cachedTransactions: MutableList<Transaction>): Boolean {
+        return try {
             // Get current balance
             val currentBalanceResult = getAddressBalance(address)
-            if (currentBalanceResult !is Result.Success) return
+            if (currentBalanceResult !is Result.Success) return false
             
             val currentBalance = currentBalanceResult.data
             
-            // Get previous balance from SharedPreferences
-            val previousBalance = sharedPreferences.getString("balance_$address", "0") ?: "0"
+            // Get previous balance from SharedPreferences. If this is the first read,
+            // store the baseline and avoid creating a fake incoming transaction.
+            val previousBalance = sharedPreferences.getString("balance_$address", null)
+            if (previousBalance == null) {
+                sharedPreferences.edit().putString("balance_$address", currentBalance).apply()
+                Log.d("MassaRepository", "Stored initial balance baseline for $address: $currentBalance")
+                return false
+            }
             
+            var addedIncoming = false
+
             // If balance increased, we likely received a transaction
-            val currentBal = currentBalance.toBigDecimalOrNull() ?: return
-            val previousBal = previousBalance.toBigDecimalOrNull() ?: return
+            val currentBal = currentBalance.toBigDecimalOrNull() ?: return false
+            val previousBal = previousBalance.toBigDecimalOrNull() ?: return false
             
             if (currentBal > previousBal) {
                 val difference = currentBal.subtract(previousBal)
@@ -1216,33 +1230,60 @@ class MassaRepository @Inject constructor(
                 }
                 
                 if (recentIncoming == null) {
-                    // Create a placeholder incoming transaction
-                    val incomingTx = Transaction(
-                        hash = "incoming_${System.currentTimeMillis()}", // Placeholder hash
-                        from = "External", // Unknown sender
-                        to = address,
-                        amount = difference.toPlainString(),
-                        token = Token(
-                            address = "",
-                            symbol = "MAS",
-                            decimals = 18,
-                            name = "Massa"
-                        ),
-                        timestamp = System.currentTimeMillis(),
-                        status = com.massapay.android.core.model.TransactionStatus.CONFIRMED,
-                        fee = "0"
-                    )
+                    val incomingTx = createIncomingTransaction(address, difference.toPlainString())
                     cachedTransactions.add(0, incomingTx)
+                    addedIncoming = true
                     Log.d("MassaRepository", "Added incoming transaction: ${difference.toPlainString()} MAS")
                 }
             }
             
             // Save current balance for next comparison
             sharedPreferences.edit().putString("balance_$address", currentBalance).apply()
-            
+            addedIncoming
         } catch (e: Exception) {
             Log.e("MassaRepository", "Error detecting incoming transactions", e)
+            false
         }
+    }
+
+    fun recordIncomingTransaction(address: String, amount: String): Transaction? {
+        val transactions = loadTransactionsFromPrefs(address).toMutableList()
+        val alreadyExists = transactions.any { tx ->
+            tx.to == address &&
+                tx.amount == amount &&
+                tx.hash.startsWith("incoming_") &&
+                System.currentTimeMillis() - tx.timestamp < 3600000
+        }
+
+        if (alreadyExists) return null
+
+        val transaction = createIncomingTransaction(address, amount)
+        transactions.add(0, transaction)
+        val updatedTransactions = transactions
+            .distinctBy { it.hash }
+            .sortedByDescending { it.timestamp }
+            .take(MAX_CACHED_TRANSACTIONS)
+        saveTransactionsToPrefs(address, updatedTransactions)
+        Log.d("MassaRepository", "Recorded incoming transaction from UI balance delta: $amount MAS")
+        return transaction
+    }
+
+    private fun createIncomingTransaction(address: String, amount: String): Transaction {
+        return Transaction(
+            hash = "incoming_${System.currentTimeMillis()}",
+            from = "External",
+            to = address,
+            amount = amount,
+            token = Token(
+                address = "",
+                symbol = "MAS",
+                decimals = 18,
+                name = "Massa"
+            ),
+            timestamp = System.currentTimeMillis(),
+            status = com.massapay.android.core.model.TransactionStatus.CONFIRMED,
+            fee = "0"
+        )
     }
     
     /**

@@ -4,6 +4,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -101,69 +102,75 @@ private fun TransactionResultContent(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.padding(32.dp)
         ) {
-            // Animated Circle with Icon
-            Box(
+            Surface(
                 modifier = Modifier
-                    .size(120.dp)
-                    .scale(scale)
-                    .background(
-                        color = backgroundColor,
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
+                    .size(112.dp)
+                    .scale(scale),
+                shape = CircleShape,
+                color = backgroundColor,
+                border = androidx.compose.foundation.BorderStroke(1.dp, iconColor.copy(alpha = 0.28f))
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(100.dp)
-                        .background(
-                            color = iconColor,
-                            shape = CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Surface(
+                        modifier = Modifier.size(82.dp),
+                        shape = CircleShape,
+                        color = iconColor
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(60.dp),
-                        tint = Color.White
+                    Text(
+                        text = title,
+                        fontSize = 27.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.graphicsLayer(alpha = alpha)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = message,
+                        fontSize = 15.sp,
+                        lineHeight = 21.sp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.graphicsLayer(alpha = alpha)
                     )
                 }
             }
             
-            Spacer(modifier = Modifier.height(32.dp))
-            
-            // Title
-            Text(
-                text = title,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.graphicsLayer(alpha = alpha)
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Message
-            Text(
-                text = message,
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.graphicsLayer(alpha = alpha)
-            )
-            
             Spacer(modifier = Modifier.height(48.dp))
             
-            // Done button
             Button(
                 onClick = onDismiss,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .height(58.dp)
                     .graphicsLayer(alpha = alpha),
-                shape = MaterialTheme.shapes.medium,
+                shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = iconColor,
+                    containerColor = if (MaterialTheme.colorScheme.background == Color.Black) Color(0xFF202124) else Color.Black,
                     contentColor = Color.White
                 )
             ) {

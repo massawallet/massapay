@@ -1,9 +1,13 @@
 package com.massapay.android
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -31,8 +35,15 @@ import androidx.navigation.compose.rememberNavController
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import com.massapay.android.security.storage.SecureStorage
 import com.massapay.android.ui.dashboard.DashboardScreen
@@ -48,11 +59,21 @@ import com.massapay.android.ui.charts.ChartsScreen
 import com.massapay.android.ui.portfolio.PortfolioScreen
 import com.massapay.android.ui.agentbridge.AgentQRScannerScreen
 import com.massapay.android.ui.theme.MassaPayTheme
+import com.massapay.android.core.preferences.AdvancedFeatureManager
+import com.massapay.android.core.model.NFT
 import com.massapay.android.core.preferences.ThemeManager
 import com.massapay.android.core.preferences.ThemeMode
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.hilt.navigation.compose.hiltViewModel
 import javax.inject.Inject
+
+private enum class HomeSheet {
+    SEND,
+    RECEIVE,
+    SWAP,
+    NFT,
+    SETTINGS
+}
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -62,18 +83,29 @@ class MainActivity : FragmentActivity() {
     
     @Inject
     lateinit var themeManager: ThemeManager
+
+    @Inject
+    lateinit var advancedFeatureManager: AdvancedFeatureManager
     
     @Inject
     lateinit var sessionManager: SessionManager
     
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Install the AndroidX splash screen BEFORE super.onCreate so the system
+        // splash uses our transparent icon (no app-icon zoom) and white background.
+        installSplashScreen()
         super.onCreate(savedInstanceState)
-        
+        requestNotificationPermissionIfNeeded()
+
         // Enable edge-to-edge display
         enableEdgeToEdge()
         
         setContent {
             val themeMode by themeManager.themeMode.collectAsState(initial = ThemeMode.LIGHT)
+            val advancedFeatures by advancedFeatureManager.featureState.collectAsState(
+                initial = com.massapay.android.core.preferences.AdvancedFeatureState()
+            )
             val isSystemInDarkTheme = isSystemInDarkTheme()
             var showSplash by remember { mutableStateOf(true) }
             val isLocked by sessionManager.isLocked.collectAsState()
@@ -82,12 +114,6 @@ class MainActivity : FragmentActivity() {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
                 ThemeMode.SYSTEM -> isSystemInDarkTheme
-            }
-            
-            // Hide splash after brief delay
-            LaunchedEffect(Unit) {
-                delay(1500) // Show splash for 1.5 seconds
-                showSplash = false
             }
             
             // Set window background color immediately based on theme
@@ -99,7 +125,7 @@ class MainActivity : FragmentActivity() {
             }
             
             if (showSplash) {
-                AnimatedSplashScreen(darkTheme = darkTheme)
+                AnimatedSplashScreen(onFinished = { showSplash = false })
             } else {
                 MassaPayTheme(darkTheme = darkTheme) {
                 // Update system bars colors based on theme
@@ -159,16 +185,33 @@ class MainActivity : FragmentActivity() {
                     navController = navController,
                     startDestination = startDestination,
                     enterTransition = {
-                        slideInHorizontally(
-                            initialOffsetX = { fullWidth -> fullWidth },
-                            animationSpec = tween(350)
-                        ) + fadeIn(animationSpec = tween(350))
+                        if (
+                            initialState.destination.route == "onboarding" &&
+                            targetState.destination.route == "home"
+                        ) {
+                            slideInVertically(
+                                initialOffsetY = { fullHeight -> -fullHeight },
+                                animationSpec = tween(520)
+                            ) + fadeIn(animationSpec = tween(260))
+                        } else {
+                            slideInHorizontally(
+                                initialOffsetX = { fullWidth -> fullWidth },
+                                animationSpec = tween(350)
+                            ) + fadeIn(animationSpec = tween(350))
+                        }
                     },
                     exitTransition = {
-                        slideOutHorizontally(
-                            targetOffsetX = { fullWidth -> -fullWidth / 4 },
-                            animationSpec = tween(350)
-                        ) + fadeOut(animationSpec = tween(200))
+                        if (
+                            initialState.destination.route == "onboarding" &&
+                            targetState.destination.route == "home"
+                        ) {
+                            fadeOut(animationSpec = tween(220))
+                        } else {
+                            slideOutHorizontally(
+                                targetOffsetX = { fullWidth -> -fullWidth / 4 },
+                                animationSpec = tween(350)
+                            ) + fadeOut(animationSpec = tween(200))
+                        }
                     },
                     popEnterTransition = {
                         slideInHorizontally(
@@ -200,16 +243,7 @@ class MainActivity : FragmentActivity() {
                     }
                     
                     composable("onboarding") {
-                        // Force light theme for onboarding (both system bars and content)
-                        SideEffect {
-                            val window = (view.context as FragmentActivity).window
-                            val insetsController = WindowCompat.getInsetsController(window, view)
-                            window.statusBarColor = Color(0xFFFFFFFF).toArgb()
-                            window.navigationBarColor = Color(0xFFFFFFFF).toArgb()
-                            insetsController.isAppearanceLightStatusBars = true
-                            insetsController.isAppearanceLightNavigationBars = true
-                        }
-                        MassaPayTheme(darkTheme = false) {
+                        MassaPayTheme(darkTheme = darkTheme) {
                             OnboardingFlowNew(
                                 onComplete = {
                                     navController.navigate("home") {
@@ -223,21 +257,39 @@ class MainActivity : FragmentActivity() {
                     
                     composable("home") {
                         val dashboardViewModel: com.massapay.android.ui.dashboard.DashboardViewModel = hiltViewModel()
+                        val sendViewModel: SendViewModel = hiltViewModel()
+                        var activeSheet by remember { mutableStateOf<HomeSheet?>(null) }
+                        var selectedSheetNft by remember { mutableStateOf<NFT?>(null) }
+                        val homeBackStackEntry = navController.currentBackStackEntry
+                        val qrResult by homeBackStackEntry
+                            ?.savedStateHandle
+                            ?.getStateFlow("qr_result", "")
+                            ?.collectAsState()
+                            ?: remember { mutableStateOf("") }
+
+                        LaunchedEffect(qrResult) {
+                            if (qrResult.isNotBlank()) {
+                                activeSheet = HomeSheet.SEND
+                                sendViewModel.parseQrCode(qrResult)
+                                homeBackStackEntry?.savedStateHandle?.set("qr_result", "")
+                            }
+                        }
+
                         DashboardScreen(
                             onSendClick = {
-                                navController.navigate("send")
+                                activeSheet = HomeSheet.SEND
                             },
                             onReceiveClick = {
-                                navController.navigate("receive")
+                                activeSheet = HomeSheet.RECEIVE
                             },
                             onSettingsClick = {
-                                navController.navigate("settings")
+                                activeSheet = HomeSheet.SETTINGS
                             },
                             onQrScanClick = {
                                 navController.navigate("qr-scanner")
                             },
                             onNftClick = {
-                                navController.navigate("nft")
+                                activeSheet = HomeSheet.NFT
                             },
                             onChartsClick = {
                                 navController.navigate("charts")
@@ -249,16 +301,95 @@ class MainActivity : FragmentActivity() {
                                 navController.navigate("staking")
                             },
                             onSwapClick = {
-                                navController.navigate("swap")
-                            },
-                            onDAppBrowserClick = {
-                                navController.navigate("dapp-browser")
+                                activeSheet = HomeSheet.SWAP
                             },
                             onPortfolioClick = {
                                 navController.navigate("portfolio")
                             },
+                            nftEnabled = advancedFeatures.nftEnabled,
+                            swapEnabled = advancedFeatures.swapEnabled,
+                            stakingEnabled = advancedFeatures.stakingEnabled,
                             viewModel = dashboardViewModel
                         )
+
+                        activeSheet?.let { sheet ->
+                            ModalBottomSheet(
+                                onDismissRequest = {
+                                    activeSheet = null
+                                    selectedSheetNft = null
+                                },
+                                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                                modifier = Modifier.fillMaxHeight(0.94f),
+                                containerColor = MaterialTheme.colorScheme.background,
+                                tonalElevation = 0.dp,
+                                dragHandle = { BottomSheetDefaults.DragHandle() }
+                            ) {
+                                when (sheet) {
+                                    HomeSheet.SEND -> {
+                                        SendScreen(
+                                            onClose = { activeSheet = null },
+                                            onScanQr = { navController.navigate("qr-scanner") },
+                                            onTransactionSuccess = { dashboardViewModel.refreshData() },
+                                            viewModel = sendViewModel
+                                        )
+                                    }
+
+                                    HomeSheet.RECEIVE -> {
+                                        ReceiveScreen(onClose = { activeSheet = null })
+                                    }
+
+                                    HomeSheet.SWAP -> {
+                                        SwapScreen(onClose = { activeSheet = null })
+                                    }
+
+                                    HomeSheet.NFT -> {
+                                        val nftViewModel: com.massapay.android.ui.nft.NFTGalleryViewModel = hiltViewModel()
+                                        val nftUiState by nftViewModel.uiState.collectAsState()
+                                        val selectedNft = selectedSheetNft
+
+                                        if (selectedNft == null) {
+                                            com.massapay.android.ui.nft.NFTGalleryScreen(
+                                                onNFTClick = { nft -> selectedSheetNft = nft },
+                                                onClose = { activeSheet = null },
+                                                isDarkTheme = darkTheme,
+                                                viewModel = nftViewModel
+                                            )
+                                        } else {
+                                            com.massapay.android.ui.nft.NFTDetailScreen(
+                                                nft = selectedNft,
+                                                onClose = { selectedSheetNft = null },
+                                                onTransfer = { toAddress ->
+                                                    android.util.Log.d("NFT", "Transfer ${selectedNft.tokenId} to $toAddress")
+                                                    nftViewModel.transferNFT(selectedNft, toAddress)
+                                                },
+                                                isDarkTheme = darkTheme,
+                                                isTransferring = nftUiState.isTransferring,
+                                                transferSuccess = nftUiState.transferSuccess,
+                                                transferError = nftUiState.error,
+                                                onDismissResult = { nftViewModel.resetTransferState() }
+                                            )
+                                        }
+                                    }
+
+                                    HomeSheet.SETTINGS -> {
+                                        SettingsScreen(
+                                            onBack = { activeSheet = null },
+                                            onShowMnemonic = {},
+                                            onResetWallet = {
+                                                activeSheet = null
+                                                navController.navigate("onboarding") {
+                                                    popUpTo(0) { inclusive = true }
+                                                }
+                                            },
+                                            onManageAccounts = {
+                                                activeSheet = null
+                                                navController.navigate("accounts")
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                     
                     composable("portfolio") {
@@ -437,54 +568,6 @@ class MainActivity : FragmentActivity() {
                         )
                     }
                     
-                    composable("dapp-browser") {
-                        com.massapay.android.ui.dapp.DAppBrowserScreen(
-                            onClose = { navController.popBackStack() },
-                            isDarkTheme = darkTheme,
-                            onWalletConnectClick = {
-                                navController.navigate("walletconnect")
-                            }
-                        )
-                    }
-                    
-                    composable("walletconnect") {
-                        val wcViewModel: com.massapay.android.ui.walletconnect.WalletConnectViewModel = hiltViewModel()
-                        
-                        // Handle WC URI from scanner
-                        val wcUri = it.savedStateHandle.get<String>("wc_uri")
-                        LaunchedEffect(wcUri) {
-                            if (!wcUri.isNullOrEmpty()) {
-                                wcViewModel.connectWithUri(wcUri)
-                                it.savedStateHandle.remove<String>("wc_uri")
-                            }
-                        }
-                        
-                        com.massapay.android.ui.walletconnect.WalletConnectScreen(
-                            onClose = { navController.popBackStack() },
-                            onScanQR = {
-                                navController.navigate("wc-scanner")
-                            },
-                            isDarkTheme = darkTheme,
-                            viewModel = wcViewModel
-                        )
-                    }
-                    
-                    composable("wc-scanner") {
-                        QrScannerScreen(
-                            onNavigateBack = {
-                                navController.popBackStack()
-                            },
-                            onQrCodeScanned = { qrData ->
-                                // If it's a WalletConnect URI, pass it back
-                                if (qrData.startsWith("wc:")) {
-                                    navController.previousBackStackEntry
-                                        ?.savedStateHandle
-                                        ?.set("wc_uri", qrData)
-                                }
-                                navController.popBackStack()
-                            }
-                        )
-                    }
                 }
                 }
             }
@@ -510,17 +593,80 @@ class MainActivity : FragmentActivity() {
             sessionManager.resetInactivityTimer()
         }
     }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+        }
+    }
 }
 
 @Composable
-fun AnimatedSplashScreen(darkTheme: Boolean) {
-    // Simple white splash screen
+fun AnimatedSplashScreen(onFinished: () -> Unit) {
+    val tagline = "Connecting people"
+    var charCount by remember { mutableStateOf(0) }
+
+    // Blinking cursor for the typewriter effect
+    val infinite = rememberInfiniteTransition(label = "cursor")
+    val cursorAlpha by infinite.animateFloat(
+        initialValue = 1f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(480),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "cursorAlpha"
+    )
+
+    // Type the tagline out, then hold briefly so it reads well, then continue
+    LaunchedEffect(Unit) {
+        delay(100)
+        for (i in 1..tagline.length) {
+            charCount = i
+            delay(42)
+        }
+        delay(550)
+        onFinished()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White),
         contentAlignment = Alignment.Center
     ) {
-        // Empty - just white background
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(
+                    id = com.massapay.android.ui.R.drawable.brand_name
+                ),
+                contentDescription = "MassaConnect",
+                modifier = Modifier
+                    .fillMaxWidth(0.72f)
+                    .height(72.dp),
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = tagline.take(charCount),
+                    color = Color(0xFF2A2A2A),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 2.sp
+                )
+                Text(
+                    text = "|",
+                    color = Color(0xFF2A2A2A).copy(alpha = cursorAlpha),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
     }
 }

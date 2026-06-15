@@ -26,16 +26,41 @@ class NFTGalleryViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(NFTGalleryState())
     val uiState: StateFlow<NFTGalleryState> = _uiState
 
+    private var currentAddress: String? = null
+
     init {
-        loadNFTs()
+        observeActiveAccount()
+    }
+
+    private fun observeActiveAccount() {
+        viewModelScope.launch {
+            accountManager.activeAccount.collectLatest { account ->
+                val address = account?.address ?: secureStorage.getActiveWallet()
+                if (address.isNullOrBlank() || address == currentAddress) {
+                    return@collectLatest
+                }
+
+                currentAddress = address
+                loadNFTs(address)
+            }
+        }
     }
 
     fun loadNFTs() {
+        val address = accountManager.activeAccount.value?.address
+            ?: secureStorage.getActiveWallet()
+            ?: return
+        currentAddress = address
+        loadNFTs(address)
+    }
+
+    private fun loadNFTs(address: String) {
         viewModelScope.launch {
-            val address = secureStorage.getActiveWallet() ?: return@launch
-            
             nftRepository.getNFTs(address).collect { result ->
                 _uiState.update { state ->
+                    if (currentAddress != address) {
+                        return@update state
+                    }
                     when (result) {
                         is com.massapay.android.core.util.Result.Success -> state.copy(
                             nfts = result.data,

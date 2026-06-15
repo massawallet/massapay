@@ -180,10 +180,37 @@ class SwapViewModel @Inject constructor(
     private var cachedQuote: SwapQuote? = null
 
     init {
+        observeActiveAccount()
+    }
+
+    private fun observeActiveAccount() {
         viewModelScope.launch {
-            val activeAccount = accountManager.activeAccount.value
-            userAddress = activeAccount?.address ?: secureStorage.getActiveWallet()
-            loadBalances()
+            accountManager.activeAccount.collectLatest { account ->
+                val address = account?.address ?: secureStorage.getActiveWallet()
+                if (address.isNullOrBlank() || address == userAddress) {
+                    return@collectLatest
+                }
+
+                userAddress = address
+                cachedQuote = null
+                _uiState.update {
+                    it.copy(
+                        fromBalance = "0",
+                        toBalance = "0",
+                        fromBalanceRaw = BigDecimal.ZERO,
+                        toBalanceRaw = BigDecimal.ZERO,
+                        canSwap = false,
+                        error = null,
+                        showConfirmation = false,
+                        confirmationData = null,
+                        swapSuccess = false,
+                        txHash = null,
+                        swapStatus = ""
+                    )
+                }
+                loadBalances()
+                validateSwap()
+            }
         }
     }
 

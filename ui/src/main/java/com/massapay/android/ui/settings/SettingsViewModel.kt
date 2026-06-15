@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massapay.android.security.storage.SecureStorage
 import com.massapay.android.security.wallet.AccountManager
+import com.massapay.android.core.preferences.AdvancedFeatureManager
 import com.massapay.android.core.preferences.ThemeManager
 import com.massapay.android.core.preferences.ThemeMode
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,6 +18,7 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val secureStorage: SecureStorage,
     private val themeManager: ThemeManager,
+    private val advancedFeatureManager: AdvancedFeatureManager,
     private val walletManager: com.massapay.android.security.wallet.WalletManager,
     private val massaRepository: com.massapay.android.network.repository.MassaRepository,
     private val accountManager: AccountManager
@@ -27,7 +29,22 @@ class SettingsViewModel @Inject constructor(
 
     init {
         loadSettings()
+        observeAdvancedFeatures()
         observeActiveAccount()
+    }
+
+    private fun observeAdvancedFeatures() {
+        viewModelScope.launch {
+            advancedFeatureManager.featureState.collect { featureState ->
+                _uiState.update {
+                    it.copy(
+                        nftEnabled = featureState.nftEnabled,
+                        swapEnabled = featureState.swapEnabled,
+                        stakingEnabled = featureState.stakingEnabled
+                    )
+                }
+            }
+        }
     }
 
     private fun observeActiveAccount() {
@@ -133,6 +150,24 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setNftEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            advancedFeatureManager.setNftEnabled(enabled)
+        }
+    }
+
+    fun setSwapEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            advancedFeatureManager.setSwapEnabled(enabled)
+        }
+    }
+
+    fun setStakingEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            advancedFeatureManager.setStakingEnabled(enabled)
+        }
+    }
+
     fun changePin(oldPin: String, newPin: String) {
         val storedPin = secureStorage.getPin()
         if (storedPin == oldPin) {
@@ -231,7 +266,9 @@ class SettingsViewModel @Inject constructor(
     fun exportTransactionHistory(onSuccess: (String) -> Unit) {
         viewModelScope.launch {
             try {
-                val address = secureStorage.getActiveWallet() ?: run {
+                val address = accountManager.activeAccount.value?.address
+                    ?: secureStorage.getActiveWallet()
+                    ?: run {
                     _uiState.update { it.copy(error = "No active wallet found") }
                     return@launch
                 }
@@ -259,7 +296,9 @@ class SettingsViewModel @Inject constructor(
     fun importTransactionHistory(filePath: String, onSuccess: (Int) -> Unit) {
         viewModelScope.launch {
             try {
-                val address = secureStorage.getActiveWallet() ?: run {
+                val address = accountManager.activeAccount.value?.address
+                    ?: secureStorage.getActiveWallet()
+                    ?: run {
                     _uiState.update { it.copy(error = "No active wallet found") }
                     return@launch
                 }
@@ -293,5 +332,8 @@ data class SettingsState(
     val privateKeyS1: String? = null,  // S1 format (for import/export)
     val publicKeyP1: String? = null,   // P1 format (for verification/sharing)
     val error: String? = null,
-    val pinChangeSuccess: Boolean = false
+    val pinChangeSuccess: Boolean = false,
+    val nftEnabled: Boolean = false,
+    val swapEnabled: Boolean = false,
+    val stakingEnabled: Boolean = false
 )

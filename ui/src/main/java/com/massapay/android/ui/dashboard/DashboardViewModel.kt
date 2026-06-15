@@ -1,5 +1,12 @@
 package com.massapay.android.ui.dashboard
 
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massapay.android.core.model.Token
@@ -9,7 +16,10 @@ import com.massapay.android.price.repository.PriceRepository
 import com.massapay.android.price.model.MassaStats
 import com.massapay.android.security.storage.SecureStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -37,6 +47,7 @@ private data class TokenInfo(
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val massaRepository: MassaRepository,
     private val priceRepository: PriceRepository,
     private val secureStorage: SecureStorage,
@@ -50,6 +61,10 @@ class DashboardViewModel @Inject constructor(
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
+
+    private var pollingJob: Job? = null
+    private var polledAddress: String? = null
+    private var initialTransactionLoadComplete = false
     
     // All supported tokens for portfolio calculation
     private val supportedTokens = listOf(
@@ -73,30 +88,70 @@ class DashboardViewModel @Inject constructor(
                         activeAccountColor = it.color.hex,
                         accountCount = accountManager.accounts.value.size
                     ) }
+                    if (polledAddress != it.address) {
+                        initialTransactionLoadComplete = false
+                    }
                     loadWalletData(it.address)
+                    startWalletPolling(it.address)
                 } ?: run {
                     // Fallback to secureStorage if AccountManager hasn't loaded yet
                     val address = secureStorage.getActiveWallet()
                     address?.let {
                         _uiState.update { state -> state.copy(activeWallet = it) }
+                        if (polledAddress != it) {
+                            initialTransactionLoadComplete = false
+                        }
                         loadWalletData(it)
+                        startWalletPolling(it)
                     }
                 }
             }
         }
     }
 
-    private fun loadWalletData(address: String) {
+    private fun startWalletPolling(address: String) {
+        if (polledAddress == address && pollingJob?.isActive == true) return
+        polledAddress = address
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            while (true) {
+                delay(30_000)
+                loadWalletData(address, silent = true)
+            }
+        }
+    }
+
+    private fun loadWalletData(address: String, silent: Boolean = false) {
         viewModelScope.launch {
             try {
                 // Get MAS balance - si falla, mostrar 0
                 when (val balRes = massaRepository.getAddressBalance(address)) {
                     is com.massapay.android.core.util.Result.Success -> {
                         val balance = balRes.data ?: "0"
+                        val previousBalance = _uiState.value.balance.toBigDecimalOrNull()
+                        val currentBalance = balance.toBigDecimalOrNull()
+                        val incomingFromBalanceDelta = if (
+                            initialTransactionLoadComplete &&
+                            previousBalance != null &&
+                            currentBalance != null &&
+                            currentBalance > previousBalance
+                        ) {
+                            val amount = currentBalance.subtract(previousBalance)
+                                .stripTrailingZeros()
+                                .toPlainString()
+                            massaRepository.recordIncomingTransaction(address, amount)
+                        } else {
+                            null
+                        }
+
                         _uiState.update { it.copy(
                             balance = balance,
+                            recentTransactions = incomingFromBalanceDelta
+                                ?.let { incoming -> mergeRecentTransaction(incoming, it.recentTransactions) }
+                                ?: it.recentTransactions,
                             isLoading = false
                         ) }
+                        incomingFromBalanceDelta?.let { showIncomingTransactionNotification(it) }
                         
                         // Update account balance in AccountManager
                         accountManager.activeAccount.value?.let { account ->
@@ -151,7 +206,7 @@ class DashboardViewModel @Inject constructor(
                         android.util.Log.e("DashboardVM", "Failed to get balance", balRes.exception)
                         _uiState.update { it.copy(
                             balance = "0",
-                            isLoading = false,
+                            isLoading = if (silent) it.isLoading else false,
                             error = null // No mostrar error, solo log
                         ) }
                     }
@@ -163,7 +218,7 @@ class DashboardViewModel @Inject constructor(
                 android.util.Log.e("DashboardVM", "Error loading wallet data", e)
                 _uiState.update { it.copy(
                     balance = "0",
-                    isLoading = false,
+                    isLoading = if (silent) it.isLoading else false,
                     error = null
                 ) }
             }
@@ -173,19 +228,30 @@ class DashboardViewModel @Inject constructor(
                 when (val txRes = massaRepository.getTransactionHistory(address)) {
                     is com.massapay.android.core.util.Result.Success -> {
                         android.util.Log.d("DashboardVM", "Loaded ${txRes.data.size} transactions")
+                        val existingHashes = _uiState.value.recentTransactions.map { it.hash }.toSet()
+                        val newIncoming = txRes.data.firstOrNull { transaction ->
+                            initialTransactionLoadComplete &&
+                                transaction.to == address &&
+                                transaction.hash.startsWith("incoming_") &&
+                                transaction.hash !in existingHashes
+                        }
                         _uiState.update { it.copy(
                             recentTransactions = txRes.data.take(5),
-                            isLoading = false
+                            isLoading = if (silent) it.isLoading else false
                         ) }
+                        if (newIncoming != null) {
+                            showIncomingTransactionNotification(newIncoming)
+                        }
+                        initialTransactionLoadComplete = true
                     }
                     else -> { 
                         android.util.Log.d("DashboardVM", "No transactions or error")
-                        _uiState.update { it.copy(isLoading = false) }
+                        _uiState.update { it.copy(isLoading = if (silent) it.isLoading else false) }
                     }
                 }
             } catch (e: Exception) {
                 android.util.Log.e("DashboardVM", "Failed to get transactions", e)
-                _uiState.update { it.copy(isLoading = false) }
+                _uiState.update { it.copy(isLoading = if (silent) it.isLoading else false) }
             }
         }
     }
@@ -194,6 +260,59 @@ class DashboardViewModel @Inject constructor(
         _uiState.update { it.copy(isLoading = true) }
         val address = accountManager.activeAccount.value?.address ?: secureStorage.getActiveWallet()
         address?.let { loadWalletData(it) }
+    }
+
+    private fun showIncomingTransactionNotification(transaction: Transaction) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            appContext.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        val channelId = "incoming_transactions"
+        val notificationManager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Incoming transactions",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Alerts when your Massa wallet receives balance"
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val pendingIntent = appContext.packageManager
+            .getLaunchIntentForPackage(appContext.packageName)
+            ?.let { launchIntent ->
+                PendingIntent.getActivity(
+                    appContext,
+                    0,
+                    launchIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            }
+
+        val notification = android.app.Notification.Builder(appContext, channelId)
+            .setSmallIcon(com.massapay.android.ui.R.drawable.brand_logo)
+            .setContentTitle("Balance received")
+            .setContentText("You received ${transaction.amount} MAS")
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+
+        notificationManager.notify(transaction.hash.hashCode(), notification)
+    }
+
+    private fun mergeRecentTransaction(
+        transaction: Transaction,
+        currentTransactions: List<Transaction>
+    ): List<Transaction> {
+        return (listOf(transaction) + currentTransactions)
+            .distinctBy { it.hash }
+            .sortedByDescending { it.timestamp }
+            .take(5)
     }
 
     fun toggleUsdDisplay() {

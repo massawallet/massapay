@@ -14,6 +14,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -28,17 +29,40 @@ class StakingViewModel @Inject constructor(
     
     private val _uiState = MutableStateFlow(StakingUiState())
     val uiState: StateFlow<StakingUiState> = _uiState.asStateFlow()
+
+    private var currentAddress: String? = null
     
     init {
-        loadStakingInfo()
+        observeActiveAccount()
+    }
+
+    private fun observeActiveAccount() {
+        viewModelScope.launch {
+            accountManager.activeAccount.collectLatest { account ->
+                val address = account?.address ?: secureStorage.getActiveWallet()
+                if (address.isNullOrBlank() || address == currentAddress) {
+                    return@collectLatest
+                }
+
+                currentAddress = address
+                loadStakingInfo(address)
+            }
+        }
     }
     
     fun loadStakingInfo() {
+        val address = getActiveAddress() ?: return
+        currentAddress = address
+        loadStakingInfo(address)
+    }
+
+    private fun loadStakingInfo(address: String) {
         viewModelScope.launch {
-            val address = getActiveAddress() ?: return@launch
-            
             stakingRepository.getStakingInfo(address).collect { result ->
                 _uiState.update { state ->
+                    if (currentAddress != address) {
+                        return@update state
+                    }
                     when (result) {
                         is Result.Loading -> state.copy(isLoading = true, error = null)
                         is Result.Success -> state.copy(

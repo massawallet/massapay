@@ -30,8 +30,8 @@ android {
         applicationId = "com.massapay.android"
         minSdk = 26  // Android 8.0+ (cubre ~95% de dispositivos activos)
         targetSdk = 34  // Target 34 para cumplir requisitos de Google Play 2024
-        versionCode = 7
-        versionName = "1.4.0"
+        versionCode = 8
+        versionName = "1.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
         // Soporte para todas las arquitecturas (dispositivos físicos y emuladores)
@@ -59,9 +59,8 @@ android {
         }
         debug {
             isMinifyEnabled = false
-            // IMPORTANTE: Sin applicationIdSuffix para que debug y release usen el mismo ID
-            // Esto permite actualizar de debug a release sin desinstalar
-            signingConfig = signingConfigs.getByName("release")  // Misma firma que release
+            // Keep the production applicationId, but use the default debug signing key
+            // so local debug builds do not require the private release keystore.
             buildConfigField("String", "WALLETCONNECT_PROJECT_ID", "\"${localProperties.getProperty("WALLETCONNECT_PROJECT_ID", "")}\"")
         }
     }
@@ -109,6 +108,7 @@ dependencies {
 
     // Core Android
     implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
     implementation("androidx.activity:activity-compose:1.8.0")
 
@@ -126,6 +126,8 @@ dependencies {
     implementation("com.google.dagger:hilt-android:2.47")
     kapt("com.google.dagger:hilt-android-compiler:2.47")
     implementation("androidx.hilt:hilt-navigation-compose:1.0.0")
+    implementation("androidx.hilt:hilt-work:1.0.0")
+    kapt("androidx.hilt:hilt-compiler:1.0.0")
 
     // Room
     implementation("androidx.room:room-runtime:2.6.0")

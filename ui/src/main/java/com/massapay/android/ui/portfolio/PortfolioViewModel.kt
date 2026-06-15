@@ -145,22 +145,40 @@ class PortfolioViewModel @Inject constructor(
 
     // Cached real prices (fetched from CoinPaprika and DEX)
     private var realPrices = mutableMapOf<String, BigDecimal>()
+    private var currentAddress: String? = null
 
     init {
-        loadPortfolio()
+        observeActiveAccount()
+    }
+
+    private fun observeActiveAccount() {
+        viewModelScope.launch {
+            accountManager.activeAccount.collectLatest { account ->
+                val address = account?.address ?: secureStorage.getActiveWallet()
+                if (address.isNullOrBlank() || address == currentAddress) {
+                    return@collectLatest
+                }
+
+                currentAddress = address
+                loadPortfolio(address)
+            }
+        }
     }
 
     fun loadPortfolio() {
+        val address = accountManager.activeAccount.value?.address
+            ?: secureStorage.getActiveWallet()
+        if (address == null) {
+            _uiState.update { it.copy(isLoading = false, error = "No wallet found") }
+            return
+        }
+        currentAddress = address
+        loadPortfolio(address)
+    }
+
+    private fun loadPortfolio(address: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
-            
-            val address = accountManager.activeAccount.value?.address 
-                ?: secureStorage.getActiveWallet()
-            
-            if (address == null) {
-                _uiState.update { it.copy(isLoading = false, error = "No wallet found") }
-                return@launch
-            }
 
             try {
                 // First, fetch real prices
@@ -213,18 +231,26 @@ class PortfolioViewModel @Inject constructor(
                     token.copy(percentage = percentage)
                 }.sortedByDescending { it.usdValue }
 
-                _uiState.update { 
-                    it.copy(
-                        tokens = tokensWithPercentage,
-                        totalUsdValue = totalUsd,
-                        isLoading = false
-                    ) 
+                _uiState.update {
+                    if (currentAddress != address) {
+                        it
+                    } else {
+                        it.copy(
+                            tokens = tokensWithPercentage,
+                            totalUsdValue = totalUsd,
+                            isLoading = false
+                        )
+                    }
                 }
 
             } catch (e: Exception) {
                 android.util.Log.e("PortfolioVM", "Error loading portfolio", e)
-                _uiState.update { 
-                    it.copy(isLoading = false, error = "Failed to load portfolio") 
+                _uiState.update {
+                    if (currentAddress != address) {
+                        it
+                    } else {
+                        it.copy(isLoading = false, error = "Failed to load portfolio")
+                    }
                 }
             }
         }

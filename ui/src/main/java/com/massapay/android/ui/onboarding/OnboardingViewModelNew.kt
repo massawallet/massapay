@@ -6,6 +6,7 @@ import com.massapay.android.security.wallet.MnemonicManager
 import com.massapay.android.security.wallet.WalletManager
 import com.massapay.android.security.storage.SecureStorage
 import com.massapay.android.security.crypto.KeystoreManager
+import com.massapay.android.core.model.UpdateAccountRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +33,7 @@ class OnboardingViewModelNew @Inject constructor(
                 _uiState.update {
                     it.copy(
                         seedWords = mnemonic.split(" "),
+                        walletName = DEFAULT_WALLET_NAME,
                         currentStep = OnboardingStepNew.GENERATE_SEED,
                         error = null
                     )
@@ -55,6 +57,7 @@ class OnboardingViewModelNew @Inject constructor(
                     _uiState.update {
                         it.copy(
                             seedWords = listOf("S1_PRIVATE_KEY", s1Key), // Special marker
+                            walletName = DEFAULT_WALLET_NAME,
                             currentStep = OnboardingStepNew.SETUP_PIN,
                             error = null
                         )
@@ -65,6 +68,7 @@ class OnboardingViewModelNew @Inject constructor(
                         _uiState.update {
                             it.copy(
                                 seedWords = seedPhrase.trim().split(" "),
+                                walletName = DEFAULT_WALLET_NAME,
                                 currentStep = OnboardingStepNew.SETUP_PIN,
                                 error = null
                             )
@@ -158,7 +162,15 @@ class OnboardingViewModelNew @Inject constructor(
                     android.util.Log.d("Onboarding", "Clearing old accounts before init...")
                     accountManager.clearAllAccounts()
                     android.util.Log.d("Onboarding", "Initializing account with address: $address")
-                    accountManager.initializeFromExistingWallet()
+                    val accountResult = accountManager.initializeFromExistingWallet()
+                    accountResult.getOrNull()?.let { account ->
+                        accountManager.updateAccount(
+                            UpdateAccountRequest(
+                                accountId = account.id,
+                                name = _uiState.value.walletName
+                            )
+                        )
+                    }
                     android.util.Log.d("Onboarding", "Account initialized successfully")
                 } catch (e: Exception) {
                     android.util.Log.e("Onboarding", "Failed to init default account", e)
@@ -201,11 +213,16 @@ class OnboardingViewModelNew @Inject constructor(
             .map { chars.random() }
             .joinToString("")
     }
+
+    private companion object {
+        const val DEFAULT_WALLET_NAME = "Main Wallet"
+    }
 }
 
 data class OnboardingStateNew(
     val currentStep: OnboardingStepNew = OnboardingStepNew.WELCOME,
     val seedWords: List<String> = emptyList(),
+    val walletName: String = "Main Wallet",
     val error: String? = null
 )
 

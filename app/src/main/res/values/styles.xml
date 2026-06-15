@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Base app theme applied AFTER the splash screen -->
     <style name="Theme.MassaPay" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- Primary branding color -->
         <item name="colorPrimary">#1E88E5</item>
         <item name="colorPrimaryVariant">#1565C0</item>
         <item name="colorOnPrimary">#FFFFFF</item>
-        <!-- Splash screen with only background, no icon -->
-        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+
+    <!-- Launch theme: uses AndroidX SplashScreen to fully control the system splash.
+         Icon is a transparent drawable so no app icon is shown (overrides Samsung). -->
+    <style name="Theme.MassaPay.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon_transparent</item>
+        <item name="postSplashScreenTheme">@style/Theme.MassaPay</item>
     </style>
 </resources>

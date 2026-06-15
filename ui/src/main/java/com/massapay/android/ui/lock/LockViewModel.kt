@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.massapay.android.security.biometric.BiometricManager
 import com.massapay.android.security.storage.SecureStorage
+import com.massapay.android.security.wallet.AccountManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +16,8 @@ import javax.inject.Inject
 @HiltViewModel
 class LockViewModel @Inject constructor(
     private val secureStorage: SecureStorage,
-    private val biometricManager: BiometricManager
+    private val biometricManager: BiometricManager,
+    private val accountManager: AccountManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LockState())
@@ -25,12 +27,23 @@ class LockViewModel @Inject constructor(
         _uiState.update { 
             it.copy(biometricAvailable = secureStorage.isBiometricEnabled())
         }
+        viewModelScope.launch {
+            accountManager.activeAccount.collect { account ->
+                _uiState.update {
+                    it.copy(walletName = account?.name?.takeIf { name -> name.isNotBlank() } ?: "Wallet")
+                }
+            }
+        }
     }
 
     fun verifyPin(pin: String) {
         val storedPin = secureStorage.getPin()
         if (storedPin == pin) {
-            _uiState.update { it.copy(isUnlocked = true, error = null) }
+            _uiState.update { it.copy(error = null, isLoading = true) }
+            viewModelScope.launch {
+                delay(850)
+                _uiState.update { it.copy(isUnlocked = true) }
+            }
         } else {
             _uiState.update { it.copy(error = "Incorrect PIN", isUnlocked = false) }
         }
@@ -47,8 +60,8 @@ class LockViewModel @Inject constructor(
     fun onBiometricSuccess() {
         _uiState.update { it.copy(error = null, showBiometricPrompt = false, isLoading = true) }
         viewModelScope.launch {
-            delay(5000)
-            _uiState.update { it.copy(isUnlocked = true, isLoading = false) }
+            delay(950)
+            _uiState.update { it.copy(isUnlocked = true) }
         }
     }
 
@@ -77,5 +90,6 @@ data class LockState(
     val error: String? = null,
     val showForgotPasswordDialog: Boolean = false,
     val walletReset: Boolean = false,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val walletName: String = "Wallet"
 )

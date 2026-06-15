@@ -5,7 +5,6 @@
         <item name="colorPrimary">#1E88E5</item>
         <item name="colorPrimaryVariant">#1565C0</item>
         <item name="colorOnPrimary">#FFFFFF</item>
-        <!-- Splash screen with only background, no icon -->
-        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:windowBackground">@color/splash_background</item>
     </style>
 </resources>

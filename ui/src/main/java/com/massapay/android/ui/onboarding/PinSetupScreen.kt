@@ -281,6 +281,7 @@ private enum class PinStep {
     CREATE, CONFIRM
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BiometricSetupDialog(
     onEnableBiometric: () -> Unit,
@@ -360,25 +361,33 @@ private fun BiometricSetupDialog(
             .build()
     }
     
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        icon = {
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.9f)
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             Icon(
                 imageVector = Icons.Default.Fingerprint,
                 contentDescription = null,
                 modifier = Modifier.size(48.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
-        },
-        title = {
             Text(
                 text = "Enable Biometric Authentication?",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
-        },
-        text = {
             Column {
                 when (canAuthenticate) {
                     androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS -> {
@@ -442,8 +451,9 @@ private fun BiometricSetupDialog(
                     )
                 }
             }
-        },
-        confirmButton = {
+
+            Spacer(modifier = Modifier.weight(1f))
+
             if (canAuthenticate == androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
                 Button(
                     onClick = {
@@ -476,8 +486,7 @@ private fun BiometricSetupDialog(
                     Text("Enable Biometric", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
-        },
-        dismissButton = {
+
             TextButton(
                 onClick = onSkip,
                 modifier = Modifier.fillMaxWidth()
@@ -492,8 +501,6 @@ private fun BiometricSetupDialog(
                     fontWeight = FontWeight.Medium
                 )
             }
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(24.dp)
-    )
+        }
+    }
 }
