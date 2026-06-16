@@ -1,248 +1,173 @@
-# MassaPay - Secure Massa Blockchain Wallet
+# MassaConnect
 
 <div align="center">
 
-![MassaPay Logo](screenshots/icono.png)
+![MassaConnect Logo](screenshots/icono.png)
 
-**Your keys. Your crypto. Your freedom.**
+**A self-custodial Android wallet for the Massa blockchain.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android-green.svg)](https://www.android.com/)
-[![Version](https://img.shields.io/badge/Version-1.2.2-blue.svg)](https://github.com/massawallet/massapay/releases)
+[![Version](https://img.shields.io/badge/Version-1.5.0-blue.svg)](https://github.com/massaconnect/massaconnect/releases/tag/v1.5.0)
 
-[Download APK](https://github.com/massawallet/massapay/releases/latest) | [Privacy Policy](PRIVACY_POLICY_EN.md) | [Report Bug](https://github.com/massawallet/massapay/issues)
+[Website](https://www.massaconnect.site/) | [Download APK](https://github.com/massaconnect/massaconnect/releases/download/v1.5.0/MassaConnect-v1.5.0.apk) | [Releases](https://github.com/massaconnect/massaconnect/releases) | [X/Twitter](https://x.com/massaconnect)
 
 </div>
 
 ---
 
-## 🆕 What's New in v1.1.0
+## What Is MassaConnect?
 
-### ✨ New Features
+MassaConnect is a mobile wallet for Massa users who want direct control over their accounts, balances, tokens, NFTs, staking, swaps, and recovery phrase. It is self-custodial: private keys and recovery data stay on the user's Android device, protected by local encryption, PIN, and optional biometric unlock.
 
-- **🥩 Staking (Rolls)**
-  - Buy Rolls with MAS (1 Roll = 100 MAS)
-  - Sell Rolls to get MAS back (3 cycles delay)
-  - View current rolls and deferred credits
-  - Real-time staking info from blockchain
-
-- **📊 Portfolio**
-  - View all your tokens in one place
-  - Real USD values from live price feeds
-  - Support for MAS, WMAS, USDC.e, DAI.e, WETH.e, DUSA
-  - Total portfolio value in Dashboard
-
-- **🔄 Enhanced Swap**
-  - Multi-path routing (5 different routes tried)
-  - Better success rate for token pairs
-  - Improved DAI.e routing through USDC.e
-  - WRAP/UNWRAP MAS ↔ WMAS support
-
-### 🐛 Bug Fixes
-
-- Fixed balance display in Staking screen
-- Fixed roll count calculation (max instead of sum)
-- Fixed LockScreen logo in dark mode
-- Fixed deferred credits parsing
-- Improved token price accuracy
+The app is built for day-to-day wallet use: create or recover a wallet, manage multiple accounts, send and receive MAS, scan QR codes, review recent activity, view portfolio data, use optional advanced sections, and interact with Massa ecosystem tools.
 
 ---
 
-## About MassaPay
+## Latest Version
 
-MassaPay is a **secure, self-custodial cryptocurrency wallet** for the Massa blockchain. Built with privacy and security as core principles, MassaPay gives you complete control over your digital assets.
+**MassaConnect 1.5.0** is a major UX and wallet-flow update.
+
+- New splash, welcome, onboarding, unlock, and dashboard experience.
+- Material Design 3 modal bottom sheets across onboarding, authentication, settings, send, swap, portfolio, market stats, and transaction results.
+- Redesigned dashboard with wallet identity, glass-style bottom navigation, portfolio preview, and Massa market stats.
+- Optional advanced features for NFT, Swap, and Staking.
+- Improved selected-wallet handling across balance and send flows.
+- Background balance monitoring and received-balance notifications.
+- Updated send, swap, QR scanner, recovery phrase, and result screens.
+
+Download the signed release APK:
+
+```text
+https://github.com/massaconnect/massaconnect/releases/download/v1.5.0/MassaConnect-v1.5.0.apk
+```
 
 ---
 
-## 📱 Screenshots
+## Screenshots
 
 <p align="center">
-  <img src="screenshots/1 (1).jpeg" width="180" alt="Lock Screen"/>
-  <img src="screenshots/1 (2).jpeg" width="180" alt="Dashboard"/>
-  <img src="screenshots/1 (3).jpeg" width="180" alt="Portfolio"/>
-  <img src="screenshots/1 (4).jpeg" width="180" alt="Send"/>
-  <img src="screenshots/1 (5).jpeg" width="180" alt="Receive"/>
+  <img src="screenshots/screenshot-001.png" width="180" alt="Welcome"/>
+  <img src="screenshots/screenshot-002.png" width="180" alt="Create Wallet"/>
+  <img src="screenshots/screenshot-003.png" width="180" alt="Recovery Phrase"/>
+  <img src="screenshots/screenshot-004.png" width="180" alt="Dashboard"/>
+  <img src="screenshots/screenshot-005.png" width="180" alt="Portfolio"/>
 </p>
 
 <p align="center">
-  <img src="screenshots/1 (6).jpeg" width="180" alt="Swap"/>
-  <img src="screenshots/1 (7).jpeg" width="180" alt="Staking"/>
-  <img src="screenshots/1 (8).jpeg" width="180" alt="Massa Statistics"/>
-  <img src="screenshots/1 (9).jpeg" width="180" alt="Settings"/>
-  <img src="screenshots/1 (10).jpeg" width="180" alt="NFT Gallery"/>
+  <img src="screenshots/screenshot-006.png" width="180" alt="Send"/>
+  <img src="screenshots/screenshot-007.png" width="180" alt="Swap"/>
+  <img src="screenshots/screenshot-008.png" width="180" alt="QR Scanner"/>
+  <img src="screenshots/screenshot-009.png" width="180" alt="Settings"/>
+  <img src="screenshots/screenshot-010.png" width="180" alt="Unlock"/>
 </p>
 
 ---
 
-## ✨ Key Features
+## Features
 
-### 💰 Wallet
-- **Self-Custodial**: You own your keys, you own your crypto
-- **Multi-Account Support**: Manage multiple wallets
-- **Real-time Balance**: MAS balance with USD value
-- **Transaction History**: View all your transactions
-
-### 🔄 DeFi
-- **Token Swap**: Exchange tokens via DUSA DEX
-- **Multi-path Routing**: 5 different routes for best rates
-- **WRAP/UNWRAP**: Convert MAS ↔ WMAS
-- **Staking**: Buy and sell Rolls for network participation
-
-### 📊 Portfolio
-- **All Tokens**: View MAS, WMAS, USDC.e, DAI.e, WETH.e, DUSA
-- **Live Prices**: Real-time USD values
-- **Total Value**: Combined portfolio worth
-
-### 🖼️ NFTs
-- **NFT Gallery**: View your NFT collection
-- **MNS Domains**: Massa Name Service support
-- **NFT Details**: View metadata and images
-
-### 🌐 DApps
-- **Built-in Browser**: Access Massa DApps
-- **MassaStation Compatible**: Works with Massa ecosystem
-- **Transaction Signing**: Approve DApp transactions
-
-### 🔒 Security
-- **AES-256 Encryption**: Bank-level security
-- **Biometric Auth**: Fingerprint and face recognition
-- **PIN Protection**: 6-digit PIN backup
-- **No Data Collection**: Complete privacy
+- Self-custodial Massa wallet with local key storage.
+- Wallet creation and recovery phrase import.
+- Multiple wallet/account support with active-wallet selection.
+- MAS balance, USD value, and recent activity.
+- Send and receive MAS with QR scanner support.
+- Optional biometric unlock and PIN fallback.
+- Portfolio view for Massa assets.
+- Swap flow with confirmation and result screens.
+- NFT gallery and staking sections available through Advanced Section toggles.
+- Massa market statistics.
+- Dark and light themes.
+- Received-balance monitoring and local notifications.
+- Open-source Android codebase.
 
 ---
 
-## 🗺️ Roadmap
+## Technology Stack
 
-### ✅ Version 1.0.0 (Released)
-- [x] Wallet creation and import (12/24-word seed)
-- [x] Send and receive MAS
-- [x] Transaction history
-- [x] Biometric authentication
-- [x] Dark/Light themes
-- [x] QR code scanning
-- [x] Price tracking (USD/EUR)
-
-### ✅ Version 1.1.0 (Current Release)
-- [x] **Staking support** (Buy/Sell Rolls)
-- [x] **Portfolio view** with all tokens
-- [x] **Enhanced Swap** with multi-path routing
-- [x] **DApp browser** improvements
-- [x] **NFT gallery** support
-- [x] Multi-account support
-- [x] Real-time USD values for all tokens
-
-### 🔜 Version 1.2.0 (Planned)
-- [ ] WalletConnect v2 integration
-- [ ] Hardware wallet support (Ledger)
-- [ ] Push notifications for transactions
-- [ ] Address book / contacts
-- [ ] Export transaction history (CSV)
-
-### 🔮 Future Versions
-- [ ] Multi-language support (ES, FR, DE, PT)
-- [ ] iOS version
-- [ ] Widget for home screen
-- [ ] Recurring payments
-- [ ] Token price alerts
-
----
-
-## 🛠️ Technology Stack
-
-| Category | Technology |
-|----------|------------|
+| Area | Technology |
+| --- | --- |
 | Language | Kotlin |
-| UI Framework | Jetpack Compose |
-| Architecture | MVVM + Clean Architecture |
-| DI | Hilt |
-| Networking | Retrofit + OkHttp |
-| Storage | EncryptedSharedPreferences |
-| Crypto | BouncyCastle + Android Keystore |
-| Blockchain | Massa (Ed25519, BLAKE3) |
+| Platform | Android, minSdk 26, targetSdk 34, compileSdk 35 |
+| UI | Jetpack Compose, Material Design 3 |
+| Architecture | Modular Android project, MVVM-style ViewModels |
+| Dependency Injection | Hilt |
+| Navigation | AndroidX Navigation Compose |
+| Networking | Retrofit, OkHttp, Gson |
+| Local Storage | DataStore, Room, EncryptedSharedPreferences |
+| Security | Android Keystore, AndroidX Security Crypto, AES-256-GCM |
+| Authentication | AndroidX Biometric, PIN unlock |
+| Background Work | WorkManager |
+| Blockchain Crypto | Ed25519, BLAKE3, Massa address/key handling |
+| Build | Gradle, Android Gradle Plugin, JDK 17 |
 
 ---
 
-## 📦 Project Structure
+## Project Structure
 
-```
-massapay/
-├── app/              # Main application module
-├── core/             # Core models and utilities
-├── network/          # Massa API and repositories
-├── security/         # Cryptography and key management
-├── ui/               # UI components and screens
-└── price/            # Price tracking module
+```text
+massaconnect/
+├── app/        # Android application entry point and release config
+├── core/       # Shared models, preferences, and core utilities
+├── network/    # Massa API repositories and network models
+├── security/   # Wallet, account, key, biometric, and secure storage logic
+├── ui/         # Compose screens, components, and ViewModels
+└── price/      # Price and market data support
 ```
 
 ---
 
-## 🔧 Building from Source
+## Build From Source
 
-### Prerequisites
+### Requirements
 
-- Android Studio Hedgehog or newer
+- Android Studio
 - JDK 17
-- Android SDK 34+
-- Gradle 8.4+
+- Android SDK 35
+- Gradle through the included wrapper
 
-### Clone and Build
+### Debug Build
 
 ```bash
-git clone https://github.com/massawallet/massapay.git
-cd massapay
+git clone https://github.com/massaconnect/massaconnect.git
+cd massaconnect
 ./gradlew assembleDebug
 ```
 
-The APK will be in `app/build/outputs/apk/debug/app-debug.apk`
+The debug APK is generated at:
+
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Release Build
+
+Release signing uses local keystore properties and private signing files that are intentionally not committed to the repository.
+
+```bash
+./gradlew assembleRelease
+```
 
 ---
 
-## 🔐 Security
+## Official Links
 
-### Cryptography
-- **Key Derivation**: BIP-39 (12/24-word seed phrases)
-- **Encryption**: AES-256-GCM
-- **Signing**: Ed25519 (Massa standard)
-- **Hashing**: BLAKE3 (Massa standard)
-
-### Responsible Disclosure
-If you discover a security vulnerability, please email: security@massapay.online
+- Website: https://www.massaconnect.site/
+- App repository: https://github.com/massaconnect/massaconnect
+- Website repository: https://github.com/massaconnect/massaconnect-website
+- Releases: https://github.com/massaconnect/massaconnect/releases
+- Issues: https://github.com/massaconnect/massaconnect/issues
+- X/Twitter: https://x.com/massaconnect
 
 ---
 
-## 📄 License
+## Security Notice
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MassaConnect is self-custodial. The user is responsible for safely backing up the recovery phrase and keeping private keys, PINs, and biometric access secure. If the recovery phrase is lost, the wallet cannot be recovered by the project maintainers.
 
----
-
-## 🙏 Acknowledgments
-
-- [Massa](https://massa.net/) - The decentralized blockchain
-- [DUSA](https://dusa.io/) - Decentralized exchange
-- [Material Design 3](https://m3.material.io/) - UI design system
-- [Jetpack Compose](https://developer.android.com/jetpack/compose) - Modern Android UI toolkit
+For this 1.5.0 APK, a new release signing key is used because the previous local signing key was no longer available. Android may require uninstalling older builds signed with a different key before installing this version. Back up the recovery phrase before uninstalling any wallet app.
 
 ---
 
-## ⚠️ Disclaimer
+## License
 
-MassaPay is a self-custodial wallet. **You are solely responsible for**:
-
-- Backing up your seed phrase
-- Keeping your seed phrase secure
-- Not sharing your private keys
-
-**We cannot recover lost wallets.** If you lose your seed phrase, your funds are **permanently lost**.
-
----
-
-<div align="center">
-
-**Made with ❤️ for the Massa community**
-
-**Developed by mderramus**
-
-[Website](https://massapay.online) • [GitHub](https://github.com/massawallet/massapay)
-
-</div>
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
